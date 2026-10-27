@@ -14,6 +14,25 @@ services:
       timeout: 5s
       retries: 10
 
+  # Separate from the Prefect database: holds the append-only stage audit log.
+  audit-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      POSTGRES_DB: audit
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - audit-data:/var/lib/postgresql/data
+      - ./audit/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit -d audit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   prefect-server:
     image: prefecthq/prefect:3-latest
     restart: unless-stopped
@@ -32,20 +51,29 @@ services:
         condition: service_healthy
 
   prefect-worker:
-    image: prefecthq/prefect:3-latest
+    build: .
+    image: prefect-run-worker
     restart: unless-stopped
     command: prefect worker start --pool local-pool --type process
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
+      AUDIT_DATABASE_URL: postgresql://audit:audit@audit-postgres:5432/audit
+      PREFECT_LOCAL_STORAGE_PATH: /opt/cache  # stage results, shared by every run: this is the cache
     volumes:
       - ./flows:/opt/flows:ro
+      - ./src:/opt/src:ro
+      - data:/opt/data
+      - cache:/opt/cache
     depends_on:
       prefect-server:
         condition: service_healthy
+      audit-postgres:
+        condition: service_healthy
 
-  # One-shot: registers the hello-local deployment against the server.
+  # One-shot: registers the price-bond-futures deployment against the server.
   prefect-deploy:
-    image: prefecthq/prefect:3-latest
+    build: .
+    image: prefect-run-worker
     restart: "no"
     working_dir: /opt/flows
     command: sh -c "prefect work-pool create local-pool --type process || true; python deploy.py"
@@ -53,9 +81,29 @@ services:
       PREFECT_API_URL: http://prefect-server:4200/api
     volumes:
       - ./flows:/opt/flows:ro
+      - ./src:/opt/src:ro
     depends_on:
       prefect-worker:
         condition: service_started
+
+  # Read-only API + page over the audit log, served at /audit/ by the proxy.
+  audit-ui:
+    build: .
+    image: prefect-run-worker
+    restart: unless-stopped
+    command: python /opt/audit_ui/server.py
+    environment:
+      PREFECT_API_URL: http://prefect-server:4200/api
+      AUDIT_DATABASE_URL: postgresql://audit:audit@audit-postgres:5432/audit
+      PREFECT_LOCAL_STORAGE_PATH: /opt/cache
+    volumes:
+      - cache:/opt/cache:ro  # the stage outputs, read directly as Parquet
+      - ./audit_ui:/opt/audit_ui:ro
+      - ./flows:/opt/flows:ro
+      - ./src:/opt/src:ro
+    depends_on:
+      audit-postgres:
+        condition: service_healthy
 
   proxy:
     image: nginx:1.27
@@ -67,6 +115,10 @@ services:
       - ./index.html:/usr/share/nginx/html/index.html:ro
     depends_on:
       - prefect-server
+      - audit-ui
 
 volumes:
   postgres-data:
+  audit-data:
+  data:
+  cache:

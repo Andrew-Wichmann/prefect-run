@@ -1,6 +1,6 @@
 # prefect-run
 
-Prefect server, worker and a small `run` package (`stage` = task wrapper, `job` = flow wrapper).
+Prefect server, worker and a small `joule` package (`stage` = task wrapper, `job` = flow wrapper).
 
 ## Stack
 
@@ -13,7 +13,7 @@ Prefect server, worker and a small `run` package (`stage` = task wrapper, `job` 
     uv pip install --python .venv/bin/python -e .
     source .venv/bin/activate
 
-Code lives in `src/run/`; flows and the deployment script are in `flows/`.
+Code lives in `src/joule/`; flows and the deployment script are in `flows/`.
 
 ## Neovim (LSP)
 

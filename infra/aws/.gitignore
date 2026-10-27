@@ -1,0 +1,5 @@
+.terraform/
+*.tfstate*
+joule.pem
+.project.tar.gz
+crash.log
