@@ -17,7 +17,7 @@ from typing import Any
 
 import pyarrow as pa
 from prefect.cache_policies import CachePolicy
-from prefect.context import TaskRunContext
+from prefect.context import FlowRunContext, TaskRunContext
 from prefect.utilities.hashing import hash_objects
 
 _busted: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar("joule_busted_stages", default=frozenset())
@@ -83,13 +83,21 @@ def fingerprint(fn: Callable[..., Any]) -> str:
     return "\n".join(f"# {k}\n{parts[k]}" for k in sorted(parts))
 
 
+def _job_name() -> str | None:
+    """The name of the job (flow) the running stage belongs to, or None outside a flow."""
+    ctx = FlowRunContext.get()
+    return ctx.flow.name if ctx and ctx.flow else None
+
+
 @dataclass
 class StageInputs(CachePolicy):
-    """Cache on a stage's inputs, plus its name and source.
+    """Cache on a stage's inputs, plus its name, source and the job it runs in.
 
     The name keeps different stages apart (two stages given the same table must not share an
     entry), and the source (see ``fingerprint``) means editing a stage's code, or the helpers and
-    constants it uses, invalidates its cache."""
+    constants it uses, invalidates its cache. The job's name keeps jobs apart: two jobs running the
+    same stage on the same inputs each get their own entry (runs of one job still share it), so a
+    job's results, and how long it keeps them, belong to that job alone."""
 
     name: str = ""
     source: str = ""
@@ -98,7 +106,11 @@ class StageInputs(CachePolicy):
         self, task_ctx: TaskRunContext, inputs: dict[str, Any], flow_parameters: dict[str, Any], **kwargs: Any
     ) -> str | None:
         return hash_objects(
-            self.name, self.source, {k: _canonical(v) for k, v in inputs.items()}, raise_on_failure=True
+            self.name,
+            self.source,
+            _job_name(),
+            {k: _canonical(v) for k, v in inputs.items()},
+            raise_on_failure=True,
         )
 
 
