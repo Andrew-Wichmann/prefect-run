@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import timedelta
 import random
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def download(key: str, dest: Path) -> Path:
     return dest
 
 
-@job(name="ingest-instruments")
+@job(name="ingest-instruments", retention=timedelta(days=7))
 async def ingest_instruments(key: str = "instruments.parquet"):
     log = get_run_logger()
     run_dir = DATA_DIR / (flow_run.id or "local")

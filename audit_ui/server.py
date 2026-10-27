@@ -43,6 +43,7 @@ JOBS = {
         "sla": asdict(spec.sla),
         "duration_sla": {"max_seconds": spec.duration_sla},
         "iceberg_table": spec.iceberg_table,
+        "retention_seconds": spec.retention.total_seconds(),  # how long the job keeps its stage results
     }
     for name, spec in REGISTRY.items()
     if spec.sla and spec.duration_sla

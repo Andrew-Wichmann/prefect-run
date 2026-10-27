@@ -1,6 +1,6 @@
 from joule import job
 from stages.calibration import calibration
-from stages.common import DELIVERY_SLA, DURATION_SLA_S, read_raw
+from stages.common import DELIVERY_SLA, DURATION_SLA_S, RETENTION, read_raw
 from stages.dq import dq
 from stages.init import init
 from stages.price_to_be_announced import price_to_be_announced as price_tba
@@ -8,6 +8,7 @@ from stages.upload import upload
 
 
 @job(
+    retention=RETENTION,
     name="price-to-be-announced",
     stages=[init, dq, calibration, price_tba, upload],
     sla=DELIVERY_SLA,

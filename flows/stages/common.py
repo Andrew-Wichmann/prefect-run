@@ -2,6 +2,7 @@ import os
 import random
 import time
 from collections.abc import Sequence
+from datetime import timedelta
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -18,6 +19,7 @@ PRICED = CALIBRATED.append(pa.field("price", pa.float64()))
 DELIVERY_SLA = Sla(time="07:00", tz="America/New_York", day_offset=1)
 """Pricing lands by 07:00 New York time the morning after the close-of-business date (T+1)."""
 DURATION_SLA_S = 30
+RETENTION = timedelta(days=30)  # how long the pricing jobs keep their stage results
 """Seconds a pricing run may take."""
 
 FAIL_RATE = 0.015

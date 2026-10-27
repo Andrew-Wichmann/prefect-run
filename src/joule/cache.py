@@ -7,11 +7,14 @@ in the job recompute (and refresh what is cached), even if their inputs are unch
 import contextlib
 import contextvars
 import inspect
+import json
 import os
 import sysconfig
+import time
 import types
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -114,13 +117,59 @@ class StageInputs(CachePolicy):
         )
 
 
+def storage_root() -> Path:
+    """Where stage results live: the result files, plus ``_meta`` (Prefect's per-entry records) and ``_expiry`` (ours)."""
+    return Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH") or Path.home() / ".prefect" / "storage")
+
+
+def keep_until(cache_key: str, storage_key: str, job: str, stage: str, retention: timedelta) -> None:
+    """Record that this cache entry must be kept for ``retention`` from now, and never for less than it already was.
+
+    Called on every run of the stage, cache hit or not, so an entry a job keeps using stays alive.
+    If a bust replaced the entry's result file, the superseded file is deleted."""
+    root = storage_root()
+    marker = root / "_expiry" / Path(cache_key).name
+    expires_at = time.time() + retention.total_seconds()
+    old = _read_marker(marker)
+    if old:
+        expires_at = max(expires_at, old["expires_at"])
+        if old["storage_key"] != storage_key:
+            (root / Path(old["storage_key"]).name).unlink(missing_ok=True)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    tmp = marker.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"job": job, "stage": stage, "storage_key": storage_key, "expires_at": expires_at}))
+    tmp.replace(marker)  # atomic, so the cleanup never reads half a marker
+
+
+def _read_marker(marker: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(marker.read_text())
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def evict_expired(now: float | None = None) -> list[dict[str, Any]]:
+    """Delete every cache entry whose retention has run out (result file, Prefect record and marker); returns what was deleted."""
+    now = time.time() if now is None else now
+    root = storage_root()
+    evicted = []
+    for marker in sorted((root / "_expiry").glob("*")):
+        info = _read_marker(marker)
+        if not info or info["expires_at"] > now:
+            continue
+        (root / Path(info["storage_key"]).name).unlink(missing_ok=True)
+        (root / "_meta" / marker.name).unlink(missing_ok=True)
+        marker.unlink(missing_ok=True)
+        evicted.append({**info, "cache_key": marker.name})
+    return evicted
+
+
 def policy_for(name: str, fn: Callable[..., Any], *schemas: pa.Schema) -> CachePolicy:
     """Cache on the stage's inputs (and identity: its code, helpers, constants and schemas)."""
     # key_storage makes Prefect write its per-entry metadata to a separate directory, so the result
     # file itself is the raw Parquet from ParquetSerializer rather than a JSON envelope around it.
-    root = os.environ.get("PREFECT_LOCAL_STORAGE_PATH") or str(Path.home() / ".prefect" / "storage")
     return StageInputs(
-        name=name, source="\n".join([fingerprint(fn), *map(str, schemas)]), key_storage=str(Path(root) / "_meta")
+        name=name, source="\n".join([fingerprint(fn), *map(str, schemas)]), key_storage=str(storage_root() / "_meta")
     )
 
 

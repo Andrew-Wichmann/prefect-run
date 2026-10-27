@@ -11,8 +11,10 @@ JOBS = [
     "price_to_be_announced",
 ]
 
+MAINTENANCE = ["cleanup_cache"]  # not jobs: no stages, SLAs or dashboard page
+
 if __name__ == "__main__":
-    for name in JOBS:
+    for name in [*JOBS, *MAINTENANCE]:
         # Prefect types from_source as a coroutine, but it runs synchronously here.
         loaded = cast(
             Flow[..., Any],
@@ -21,4 +23,5 @@ if __name__ == "__main__":
         loaded.deploy(
             name=name.replace("_", "-"),
             work_pool_name="local-pool",
+            **({"cron": "0 3 * * *"} if name in MAINTENANCE else {}),  # daily, 03:00 UTC
         )

@@ -2,6 +2,7 @@ import functools
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any, Literal, Optional, ParamSpec, TypeVar, overload
 
 from prefect import Flow, Task, flow
@@ -29,6 +30,7 @@ class Sla:
 class JobSpec:
     """Everything a job declares about itself; the audit UI reads this instead of keeping its own config."""
 
+    retention: timedelta
     stages: list[str] = field(default_factory=list)
     sla: Sla | None = None
     duration_sla: float | None = None  # seconds the run may take
@@ -40,13 +42,23 @@ JOBS: dict[str, JobSpec] = {}
 
 
 @overload
-def job(fn: Callable[P, R]) -> Flow[P, R]: ...
+def job(
+    fn: Callable[P, R],
+    *,
+    retention: timedelta,
+    stages: Sequence[Task[..., Any]] = (),
+    sla: Sla | None = None,
+    duration_sla: float | None = None,
+    iceberg_table: str | None = None,
+    **flow_kwargs: Any,
+) -> Flow[P, R]: ...
 
 
 @overload
 def job(
     fn: None = None,
     *,
+    retention: timedelta,
     stages: Sequence[Task[..., Any]] = (),
     sla: Sla | None = None,
     duration_sla: float | None = None,
@@ -58,6 +70,7 @@ def job(
 def job(
     fn: Callable[P, R] | None = None,
     *,
+    retention: timedelta,
     stages: Sequence[Task[..., Any]] = (),
     sla: Sla | None = None,
     duration_sla: float | None = None,
@@ -66,7 +79,9 @@ def job(
 ) -> Flow[P, R] | Callable[[Callable[P, R]], Flow[P, R]]:
     """Wrap a function as a Prefect flow.
 
-    Usable bare (``@job``) or with flow options (``@job(name="nightly")``).
+    ``retention`` is mandatory: how long the job keeps its stage results (its cache entries)
+    after the last run that used them. Each use of an entry extends its expiry, and the daily
+    ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
     ``stages`` declares, in order, the stages the job runs, and the run fails if it
     executes anything else. ``sla`` (delivery deadline), ``duration_sla`` (seconds the
     run may take) and ``iceberg_table`` describe the job; all are registered in ``JOBS``
@@ -81,7 +96,7 @@ def job(
         if order:
             f = _with_cache_busting(f, order)
         wrapped = flow(**flow_kwargs)(f)
-        JOBS[wrapped.name] = JobSpec(order, sla, duration_sla, iceberg_table)
+        JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table)
         return wrapped
 
     return decorate(fn) if fn is not None else decorate

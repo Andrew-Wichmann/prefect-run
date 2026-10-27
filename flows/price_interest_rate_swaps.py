@@ -1,5 +1,5 @@
 from joule import job
-from stages.common import DELIVERY_SLA, DURATION_SLA_S, read_raw
+from stages.common import DELIVERY_SLA, DURATION_SLA_S, RETENTION, read_raw
 from stages.dq import dq
 from stages.init import init
 from stages.price_interest_rate_swaps import price_interest_rate_swaps as price_swaps
@@ -7,6 +7,7 @@ from stages.upload import upload
 
 
 @job(
+    retention=RETENTION,
     name="price-interest-rate-swaps",
     stages=[init, dq, price_swaps, upload],
     sla=DELIVERY_SLA,

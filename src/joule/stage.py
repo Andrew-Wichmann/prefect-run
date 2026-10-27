@@ -1,4 +1,5 @@
 import functools
+import inspect
 from collections.abc import Callable, Mapping
 from typing import Any, Concatenate, ParamSpec, cast
 
@@ -6,6 +7,7 @@ import pyarrow as pa
 from prefect import Task
 
 from joule import audit, cache, trace
+from joule.job import JOBS
 from joule.serializer import ParquetSerializer
 from joule.status import Outcome, Status
 
@@ -93,6 +95,13 @@ class _Stage(Task[Any, Any]):
         state = Task.__call__(task, *args, return_state=True, **kwargs)
         table, statuses = state.result()  # re-raises if the stage failed
         task_run_id = str(state.state_details.task_run_id)
+        job = cache._job_name()
+        if job in JOBS and isinstance(self.cache_policy, cache.StageInputs):
+            storage_key = state.data.metadata.storage_key  # type: ignore[union-attr]
+            bound = inspect.signature(self.fn).bind(*args, **kwargs)
+            bound.apply_defaults()
+            cache_key = self.cache_policy.compute_key(None, dict(bound.arguments), {})  # type: ignore[arg-type]
+            cache.keep_until(cache_key, storage_key, job, self.name, JOBS[job].retention)
         audit.record(self.name, PRIMARY_KEY, statuses, task_run_id)
         return table
 
