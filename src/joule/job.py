@@ -3,7 +3,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Any, Literal, Optional, ParamSpec, TypeVar, overload
+from typing import Any, Literal, Optional, ParamSpec, TypeVar
 
 from prefect import Flow, Task, flow
 
@@ -41,9 +41,7 @@ JOBS: dict[str, JobSpec] = {}
 """Every job's spec by flow name, filled in as job modules are imported."""
 
 
-@overload
 def job(
-    fn: Callable[P, R],
     *,
     retention: timedelta,
     stages: Sequence[Task[..., Any]] = (),
@@ -51,34 +49,10 @@ def job(
     duration_sla: float | None = None,
     iceberg_table: str | None = None,
     **flow_kwargs: Any,
-) -> Flow[P, R]: ...
-
-
-@overload
-def job(
-    fn: None = None,
-    *,
-    retention: timedelta,
-    stages: Sequence[Task[..., Any]] = (),
-    sla: Sla | None = None,
-    duration_sla: float | None = None,
-    iceberg_table: str | None = None,
-    **flow_kwargs: Any,
-) -> Callable[[Callable[P, R]], Flow[P, R]]: ...
-
-
-def job(
-    fn: Callable[P, R] | None = None,
-    *,
-    retention: timedelta,
-    stages: Sequence[Task[..., Any]] = (),
-    sla: Sla | None = None,
-    duration_sla: float | None = None,
-    iceberg_table: str | None = None,
-    **flow_kwargs: Any,
-) -> Flow[P, R] | Callable[[Callable[P, R]], Flow[P, R]]:
+) -> Callable[[Callable[P, R]], Flow[P, R]]:
     """Wrap a function as a Prefect flow.
 
+    A job is always parameterized (``@job(retention=...)``, never bare ``@job``).
     ``retention`` is mandatory: how long the job keeps its stage results (its cache entries)
     after the last run that used them. Each use of an entry extends its expiry, and the daily
     ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
@@ -99,7 +73,7 @@ def job(
         JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table)
         return wrapped
 
-    return decorate(fn) if fn is not None else decorate
+    return decorate
 
 
 def _with_cache_busting(f: Callable[..., Any], order: list[str]) -> Callable[..., Any]:
