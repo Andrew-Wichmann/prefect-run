@@ -1,18 +1,16 @@
 import asyncio
 import os
-from datetime import timedelta
 import random
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-from prefect import get_run_logger
+from prefect import flow, get_run_logger
 from prefect.deployments import run_deployment
 from prefect.runtime import flow_run
 
 from instruments import JOB_FOR, InstrumentType, make_instruments
-from joule import job
 
 DATA_DIR = Path(os.environ.get("JOULE_DATA_DIR", "/opt/data"))
 
@@ -25,7 +23,7 @@ def download(key: str, dest: Path) -> Path:
     return dest
 
 
-@job(name="ingest-instruments", retention=timedelta(days=7))
+@flow(name="ingest-instruments")  # dispatches the pricing jobs; no stages of its own, so a plain flow
 async def ingest_instruments(key: str = "instruments.parquet"):
     log = get_run_logger()
     run_dir = DATA_DIR / (flow_run.id or "local")

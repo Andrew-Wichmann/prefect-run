@@ -44,7 +44,7 @@ JOBS: dict[str, JobSpec] = {}
 def job(
     *,
     retention: timedelta,
-    stages: Sequence[Task[..., Any]] = (),
+    stages: Sequence[Task[..., Any]],
     sla: Sla | None = None,
     duration_sla: float | None = None,
     iceberg_table: str | None = None,
@@ -56,20 +56,20 @@ def job(
     ``retention`` is mandatory: how long the job keeps its stage results (its cache entries)
     after the last run that used them. Each use of an entry extends its expiry, and the daily
     ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
-    ``stages`` declares, in order, the stages the job runs, and the run fails if it
-    executes anything else. ``sla`` (delivery deadline), ``duration_sla`` (seconds the
+    ``stages`` is mandatory and non-empty: it declares, in order, the stages the job runs, and
+    the run fails if it executes anything else. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``sla`` (delivery deadline), ``duration_sla`` (seconds the
     run may take) and ``iceberg_table`` describe the job; all are registered in ``JOBS``
     under the flow's name, which is where the audit UI reads them.
 
-    A job with stages also takes a ``bust_cache_from`` parameter: the name of a
+    A job also takes a ``bust_cache_from`` parameter: the name of a
     stage from which the cache is ignored, so that stage and all later ones rerun.
     """
     order = [s.name for s in stages]
+    if not order:
+        raise ValueError("a job must declare at least one stage; use a plain @flow otherwise")
 
     def decorate(f: Callable[P, R], /) -> Flow[P, R]:
-        if order:
-            f = _with_cache_busting(f, order)
-        wrapped = flow(**flow_kwargs)(f)
+        wrapped = flow(**flow_kwargs)(_with_cache_busting(f, order))
         JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table)
         return wrapped
 
