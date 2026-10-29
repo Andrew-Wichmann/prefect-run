@@ -19,7 +19,7 @@
   #snapshot { min-width: min(900px, 94vw); max-width: 96vw; }
   .snap-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
   .snap-bar .grow-sp { flex: 1; }
-  .snap-bar button, .snap-bar select, button.snap { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+  .snap-bar button, .snap-bar select, button.snap, button.bust { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
   .snap-bar button:disabled { opacity: .4; cursor: default; }
   dialog { min-width: min(480px, 92vw); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
     background: var(--bg); color: var(--fg); }
@@ -263,10 +263,31 @@ $("snap-prev").onclick = () => { snap.offset = Math.max(snap.offset - SNAP_PAGE,
 $("snap-next").onclick = () => { snap.offset += SNAP_PAGE; loadSnapshot(); };
 $("snapshot").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
+// Start a run straight from the dashboard: POST to Prefect's API, then link to the run it created.
+async function startRun(btn) {
+  btn.disabled = true;
+  btn.textContent = "starting…";
+  try {
+    const r = await fetch(`/prefect/api/deployments/${btn.dataset.deployment}/create_flow_run`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parameters: JSON.parse(btn.dataset.params) }),
+    });
+    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
+    const run = await r.json();
+    btn.outerHTML = `<a class="tlink" href="?run=${esc(run.id)}">started: ${esc(run.name)} →</a>`;
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "rerun from here";
+    alert(`Could not start the run: ${err.message}`);
+  }
+}
+
 $("stages").addEventListener("click", (e) => {
   const view = e.target.closest("button.snap");
   if (view) return void openSnapshot(view.dataset.stage);
-  if (e.target.closest("a.bust, a.tlink")) return;
+  const bust = e.target.closest("button.bust");
+  if (bust) return void startRun(bust);
+  if (e.target.closest("a.tlink")) return;
   const b = e.target.closest(".stage-card");
   if (!b) return;
   stage = stage === b.dataset.stage ? null : b.dataset.stage;

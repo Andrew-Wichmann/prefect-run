@@ -15,12 +15,12 @@ function statusMix(counts, base) {
   return `<div class="mix" role="img" aria-label="${total} of ${base} instruments">${segs.join("")}</div>`;
 }
 
-// Prefect's "run from deployment" page, prefilled with this run's parameters and the cache busted from `stage`.
-// The Prefect UI expects the JSON URL-encoded once inside the query value, which the router then encodes again.
+// A button that starts a new run of this job's deployment (the same parameters, the cache busted from `stage`);
+// the click handler in index.html posts it to Prefect's API.
 const bustLink = (j, stage) => {
   if (!j.deployment_id) return "";
-  const params = encodeURIComponent(JSON.stringify({ ...j.parameters, bust_cache_from: stage }));
-  return `<a class="bust" href="/prefect/deployments/deployment/${j.deployment_id}/run?parameters=${encodeURIComponent(params)}" target="_blank" rel="noopener" title="Open a new run in Prefect with the cache busted from ${esc(stage)} (it and everything after it rerun)">rerun from here ↗</a>`;
+  const params = JSON.stringify({ ...j.parameters, bust_cache_from: stage });
+  return `<button class="bust" data-deployment="${esc(j.deployment_id)}" data-params="${esc(params)}" title="Start a new run with the cache busted from ${esc(stage)} (it and everything after it rerun)">rerun from here</button>`;
 };
 
 const cardAttrs = (n, stage, cls) =>
