@@ -361,9 +361,17 @@ def snapshot_rows(run_id, stage, task_run_id, offset):
         seen += batch.num_rows
         if len(rows) >= SNAPSHOT_ROWS:
             break
+    # Each row's status is not a column: ParquetSerializer keeps the outcomes in the file's metadata, keyed by primary key.
+    meta = (pf.schema_arrow.metadata or {}).get(b"joule.outcomes")
+    outcomes = {}
+    if meta:
+        o = json.loads(meta)
+        outcomes = {str(k): {"status": s, "detail": d} for k, s, d in zip(o["key"], o["status"], o["detail"])}
+    for row in rows:
+        row["__outcome"] = outcomes.get(str(row.get("primary_key")))
     return {
         "columns": [{"name": c.name, "type": str(c.type)} for c in pf.schema_arrow],
-        "total": pf.metadata.num_rows, "offset": offset, "rows": rows,
+        "total": pf.metadata.num_rows, "offset": offset, "rows": rows, "has_outcomes": bool(outcomes),
     }
 
 

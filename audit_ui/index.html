@@ -255,8 +255,10 @@ async function loadSnapshot() {
   $("snap-prev").disabled = d.offset <= 0;
   $("snap-next").disabled = d.offset + SNAP_PAGE >= d.total;
   const cell = (v) => v == null ? `<span class="muted">null</span>` : esc(typeof v === "object" ? JSON.stringify(v) : String(v));
-  $("snap-table").innerHTML = `<thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead>
-    <tbody>${d.rows.map((row) => `<tr>${d.columns.map((c) => `<td class="nw">${cell(row[c.name])}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  // The status is not a column of the file (it lives in the Parquet metadata), so it is shown as a leading widget.
+  const status = (o) => o ? `<td class="nw" title="${esc(o.detail || "")}">${badge(o.status)}${o.detail ? ` <span class="muted">${esc(o.detail)}</span>` : ""}</td>` : `<td class="muted">–</td>`;
+  $("snap-table").innerHTML = `<thead><tr>${d.has_outcomes ? "<th>status</th>" : ""}${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead>
+    <tbody>${d.rows.map((row) => `<tr>${d.has_outcomes ? status(row.__outcome) : ""}${d.columns.map((c) => `<td class="nw">${cell(row[c.name])}</td>`).join("")}</tr>`).join("")}</tbody>`;
 }
 $("snap-run").onchange = () => { snap.offset = 0; loadSnapshot(); };
 $("snap-prev").onclick = () => { snap.offset = Math.max(snap.offset - SNAP_PAGE, 0); loadSnapshot(); };
