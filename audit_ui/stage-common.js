@@ -1,4 +1,4 @@
-// Pieces shared by every stage-widget layout: layouts.js is the current one (v1), layouts-v2.js ... are variants.
+// Pieces the stage timeline (layouts.js) is built from.
 // (esc, pill, fmtTime and STATUSES come from the page's own script.)
 
 const secs = (s) => s == null ? "–" : `${s.toFixed(1)} s`;
@@ -20,12 +20,10 @@ function statusMix(counts, base) {
   return `<div class="mix" role="img" aria-label="${total} of ${base} instruments">${segs.join("")}</div>`;
 }
 
-// The three things you can do to a stage. The page's click handler recognises them by class (bust, snap, tlink).
+// What you can do to a stage. The page's click handler recognises them by class (bust, tlink).
 // `label` is the visible text (an icon in the compact layouts); `tip` explains it.
 const bustButton = (j, stage, label = "rerun from here", cls = "") => !j.deployment_id ? "" :
   `<button class="bust ${cls}" data-label="${esc(label)}" data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify({ ...j.parameters, bust_cache_from: stage }))}" title="Start a new run with the cache busted from ${esc(stage)} (it and everything after it rerun)" aria-label="Rerun from ${esc(stage)}">${label}</button>`;
-const viewButton = (t, stage, label = "view data", cls = "") => !t ? "" :
-  `<button class="snap ${cls}" data-stage="${esc(stage)}" title="Inspect this stage's output table" aria-label="View ${esc(stage)} data">${label}</button>`;
 const openLink = (t, label = "Open in Prefect", cls = "") => !t?.id ? "" :
   `<a class="tlink ${cls}" href="/prefect/runs/task-run/${t.id}" title="Open this task run in Prefect" aria-label="Open ${esc(t.name || "stage")} in Prefect">${label}</a>`;
 

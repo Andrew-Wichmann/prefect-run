@@ -28,9 +28,8 @@ HERE = Path(__file__).parent
 CACHE = Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH", "/opt/cache"))
 SNAPSHOT_ROWS = 200  # most rows returned per request
 PAGES = {"/": "index.html"}
-VARIANTS = ["v2", "v3", "v4", "v5", "v6"]  # alternative stage widgets, each its own page: /v2 ... /v6 (the original is /)
 ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascript; charset=utf-8" for n in
-          ["live", "tz", "stage-common", "layouts", *[f"layouts-{v}" for v in VARIANTS]]}}
+          ["live", "tz", "stage-common", "layouts"]}}
 
 sys.path.append("/opt/flows")  # job modules live next to the worker's flows
 import deploy  # noqa: E402  (lists the job modules)
@@ -407,13 +406,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._stream()
             if url.path in PAGES:
                 return self._send((HERE / PAGES[url.path]).read_bytes(), "text/html; charset=utf-8")
-            if url.path[1:] in VARIANTS:  # the same page with that variant's stage widget in place of layouts.js
-                v = url.path[1:]
-                html = (HERE / "index.html").read_text().replace(
-                    '<script src="layouts.js"></script>',
-                    f'<script>window.STAGE_VARIANT = "{v}";</script>\n<script src="layouts-{v}.js"></script>',
-                )
-                return self._send(html.encode(), "text/html; charset=utf-8")
             if url.path in ASSETS:
                 return self._send((HERE / url.path[1:]).read_bytes(), ASSETS[url.path])
             if url.path == "/api/jobs":
