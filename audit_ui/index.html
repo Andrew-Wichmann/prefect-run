@@ -44,6 +44,10 @@
   .pillsel .caret { font-size: 10px; }
   #detail { position: relative; }
   .detail-act { position: absolute; top: 0; right: 0; }
+  /* same look as the stage rows' icon buttons (.v3 .ico in layouts.js) */
+  .detail-act button.ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
+    border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }
+  .detail-act button.ico:hover { border-color: var(--run); }
   .stage-card { cursor: pointer; }
   .stage-card:hover, .stage-card.selected { border-color: var(--run); }
   .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
@@ -229,7 +233,7 @@ async function loadDetail() {
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
     ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>`],
   ];
-  $("rerun").innerHTML = j.deployment_id ? `<button class="bust"  data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "";
+  $("rerun").innerHTML = j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "";
   stageNames = j.stages;
   $("stages").innerHTML = renderStages(j, stage);
   $("meta").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
