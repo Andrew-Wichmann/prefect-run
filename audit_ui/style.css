@@ -13,7 +13,7 @@
     font: 14px/1.4 system-ui, sans-serif; }
   h1 { font-size: 18px; margin: 0 0 12px; }
   h2 { font-size: 14px; margin: 20px 0 8px; color: var(--muted); font-weight: 600; }
-  main { max-width: 960px; margin: 0 auto; }
+  main { max-width: min(1600px, 96vw); margin: 0 auto; }
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
   th { color: var(--muted); font-weight: 500; }

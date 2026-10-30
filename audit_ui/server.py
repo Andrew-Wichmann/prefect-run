@@ -33,9 +33,9 @@ PREFECT = os.environ.get("PREFECT_API_URL", "http://prefect-server:4200/api")
 HERE = Path(__file__).parent
 CACHE = Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH", "/opt/cache"))
 SNAPSHOT_ROWS = 200  # most rows returned per request
-PAGES = {"/": "index.html", "/data": "data.html"}
+PAGES = {"/": "index.html"}
 ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascript; charset=utf-8" for n in
-          ["live", "tz", "stage-common", "layouts", "data-common", "data-sql", "codemirror-sql", *[f"data-v{i}" for i in range(1, 10)]]}}
+          ["live", "tz", "stage-common", "layouts", "stage-data"]}}
 
 sys.path.append("/opt/flows")  # job modules live next to the worker's flows
 import deploy  # noqa: E402  (lists the job modules)

@@ -16,11 +16,25 @@
   .pager button:disabled { opacity: .4; cursor: default; }
   #stage-rows tr { cursor: pointer; }
   #stage-rows tr:hover td { background: color-mix(in srgb, var(--muted) 12%, transparent); }
-  #snapshot { min-width: min(900px, 94vw); max-width: 96vw; }
-  .snap-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-  .snap-bar .grow-sp { flex: 1; }
-  .snap-bar button, .snap-bar select, button.snap, button.bust { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
-  .snap-bar button:disabled { opacity: .4; cursor: default; }
+  button.snap, button.bust { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+  #stagedata { width: 96vw; height: 92vh; max-width: none; padding: 0; }
+  #stagedata[open] { display: flex; flex-direction: column; }
+  .sd-head { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex: none; }
+  .sd-head h3 { margin: 0; font-size: 16px; }
+  .sd-x { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; }
+  .sd-tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); flex: none; }
+  .sd-tabs button { font: inherit; font-size: 13px; padding: 8px 14px; background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .sd-tabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--run); }
+  .sd-pane { flex: 1; min-height: 0; padding: 10px 16px 14px; flex-direction: column; gap: 8px; }
+  .sd-pane:not([hidden]) { display: flex; }
+  .sd-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; flex: none; }
+  .sd-btn { font: inherit; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+  .sd-btn:hover:not(:disabled) { background: var(--sel); }
+  .sd-btn:disabled { opacity: .4; cursor: default; }
+  .sd-btn.primary { border-color: var(--run); color: var(--run); }
+  .sd-editor { height: 150px; flex: none; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .sd-note { color: var(--muted); font-size: 12px; }
+  .sd-err { color: var(--failed); font-size: 13px; padding: 12px; white-space: pre-wrap; }
   dialog { min-width: min(480px, 92vw); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
     background: var(--bg); color: var(--fg); }
   dialog::backdrop { background: rgb(0 0 0 / .45); }
@@ -118,20 +132,11 @@
     <tbody id="inst-rows"></tbody>
   </table>
 </dialog>
-<dialog id="snapshot">
-  <form method="dialog" class="dlg-head"><h3 id="snap-title"></h3><button aria-label="Close">✕</button></form>
-  <div class="snap-bar">
-    <select id="snap-run" aria-label="Task run"></select>
-    <span id="snap-info" class="muted"></span>
-    <span class="grow-sp"></span>
-    <button id="snap-prev">← Prev</button><button id="snap-next">Next →</button>
-  </div>
-  <div class="table-wrap"><table id="snap-table"></table></div>
-</dialog>
 <script src="live.js"></script>
 <script src="tz.js"></script>
 <script src="stage-common.js"></script>
 <script src="layouts.js"></script>
+<script src="stage-data.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -287,44 +292,6 @@ $("stage-rows").addEventListener("click", (e) => {
 $("instrument").addEventListener("close", () => { openKey = null; });
 $("instrument").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
-// Inspect a stage's output: the Parquet snapshot of each task run of this stage in the flow run.
-let snap = { stage: null, runs: [], offset: 0, total: 0 };
-const SNAP_PAGE = 200;
-const bytesText = (n) => n < 1e6 ? `${(n / 1e3).toFixed(0)} kB` : `${(n / 1e6).toFixed(1)} MB`;
-
-async function openSnapshot(stageName) {
-  const r = await fetch(`api/snapshots?run=${encodeURIComponent(selected)}&stage=${encodeURIComponent(stageName)}`);
-  const { snapshots } = r.ok ? await r.json() : { snapshots: [] };
-  snap = { stage: stageName, runs: snapshots, offset: 0, total: 0 };
-  $("snap-title").innerHTML = `<code>${esc(stageName)}</code> output`;
-  $("snap-run").innerHTML = snapshots.map((s, i) => `<option value="${s.task_run_id}">Task run ${i + 1} of ${snapshots.length} · ${when(s.at)} · ${s.rows} rows · ${bytesText(s.bytes)}</option>`).join("");
-  $("snap-run").hidden = snapshots.length < 2;
-  if (!$("snapshot").open) $("snapshot").showModal();
-  await loadSnapshot();
-}
-
-async function loadSnapshot() {
-  const id = $("snap-run").value;
-  if (!id) { $("snap-table").innerHTML = ""; $("snap-info").textContent = "No snapshot for this stage in this run"; $("snap-prev").hidden = $("snap-next").hidden = true; return; }
-  const r = await fetch(`api/snapshot?run=${encodeURIComponent(selected)}&stage=${encodeURIComponent(snap.stage)}&task_run=${id}&offset=${snap.offset}`);
-  if (!r.ok) return;
-  const d = await r.json();
-  snap.total = d.total;
-  $("snap-info").textContent = d.total ? `rows ${d.offset + 1}–${d.offset + d.rows.length} of ${d.total}` : "0 rows";
-  $("snap-prev").hidden = $("snap-next").hidden = d.total <= SNAP_PAGE;
-  $("snap-prev").disabled = d.offset <= 0;
-  $("snap-next").disabled = d.offset + SNAP_PAGE >= d.total;
-  const cell = (v) => v == null ? `<span class="muted">null</span>` : esc(typeof v === "object" ? JSON.stringify(v) : String(v));
-  // The status is not a column of the file (it lives in the Parquet metadata), so it is shown as a leading widget.
-  const status = (o) => o ? `<td class="nw" title="${esc(o.detail || "")}">${badge(o.status)}${o.detail ? ` <span class="muted">${esc(o.detail)}</span>` : ""}</td>` : `<td class="muted">–</td>`;
-  $("snap-table").innerHTML = `<thead><tr>${d.has_outcomes ? "<th>status</th>" : ""}${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead>
-    <tbody>${d.rows.map((row) => `<tr>${d.has_outcomes ? status(row.__outcome) : ""}${d.columns.map((c) => `<td class="nw">${cell(row[c.name])}</td>`).join("")}</tr>`).join("")}</tbody>`;
-}
-$("snap-run").onchange = () => { snap.offset = 0; loadSnapshot(); };
-$("snap-prev").onclick = () => { snap.offset = Math.max(snap.offset - SNAP_PAGE, 0); loadSnapshot(); };
-$("snap-next").onclick = () => { snap.offset += SNAP_PAGE; loadSnapshot(); };
-$("snapshot").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
-
 // Start a run straight from the dashboard: POST to Prefect's API, then link to the run it created.
 async function startRun(btn) {
   btn.disabled = true;
@@ -362,7 +329,7 @@ $("meta").addEventListener("click", (e) => {
 
 $("stages").addEventListener("click", (e) => {
   const view = e.target.closest("button.snap");
-  if (view) return void window.open(`data?run=${encodeURIComponent(selected)}&stage=${encodeURIComponent(view.dataset.stage)}`, "_blank");
+  if (view) return void openStageData(selected, view.dataset.stage);
   const bust = e.target.closest("button.bust");
   if (bust) return void startRun(bust);
   if (e.target.closest("a.tlink")) return;
