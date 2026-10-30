@@ -17,6 +17,7 @@ addStyle(`
   .v3 .ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
     border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; text-decoration: none; cursor: pointer; }
   .v3 .ico:hover { border-color: var(--run); }
+  .v3 .ico .dicon { width: 16px; height: 16px; }
   .v3 .ico .picon { width: 16px; height: 16px; }
   @container (max-width: 640px) {
     .v3 .row3 { grid-template-columns: 1fr auto; grid-template-areas: "who tools" "track track" "facts facts"; }
@@ -31,7 +32,7 @@ function renderStages(j, stage) {
     const t = g.T[n];
     return `<div ${cardAttrs(n, stage, "row3")}>
       <div class="who"><b>${esc(n)}</b>${g.status(n)}</div>
-      <div class="tools">${bustButton(j, n, "↻", "ico")}${openLink(t, PREFECT_ICON, "ico")}</div>
+      <div class="tools">${t?.id ? `<button class="snap ico" data-stage="${esc(n)}" title="View the stage's output data" aria-label="View data for ${esc(n)}">${DATA_ICON}</button>` : ""}${bustButton(j, n, "↻", "ico")}${openLink(t, PREFECT_ICON, "ico")}</div>
       ${g.track(n)}
       <div class="facts">${g.mix(n)}<span class="cnt">${g.took(n)} · usually ${g.usually(n)}</span></div></div>`;
   }).join("");
