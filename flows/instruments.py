@@ -38,9 +38,9 @@ PREFIX = {
 }
 
 
-def make_instruments(rng: random.Random, n: int) -> pa.Table:
-    """Fake instrument master: ``n`` rows of mixed type with a random price."""
-    types = [rng.choice(list(InstrumentType)) for _ in range(n)]
+def make_instruments(rng: random.Random, n: int, only: InstrumentType | None = None) -> pa.Table:
+    """Fake instrument master: ``n`` rows of mixed type (or all of type ``only``) with a random price."""
+    types = [only or rng.choice(list(InstrumentType)) for _ in range(n)]
     return pa.table(
         {
             "primary_key": [f"{PREFIX[t]}-{i:04d}" for i, t in enumerate(types)],

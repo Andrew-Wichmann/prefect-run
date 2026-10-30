@@ -362,7 +362,7 @@ $("meta").addEventListener("click", (e) => {
 
 $("stages").addEventListener("click", (e) => {
   const view = e.target.closest("button.snap");
-  if (view) return void openSnapshot(view.dataset.stage);
+  if (view) return void window.open(`data?run=${encodeURIComponent(selected)}&stage=${encodeURIComponent(view.dataset.stage)}`, "_blank");
   const bust = e.target.closest("button.bust");
   if (bust) return void startRun(bust);
   if (e.target.closest("a.tlink")) return;

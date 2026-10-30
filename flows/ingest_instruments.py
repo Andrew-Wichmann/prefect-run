@@ -15,20 +15,21 @@ from instruments import JOB_FOR, InstrumentType, make_instruments
 DATA_DIR = Path(os.environ.get("JOULE_DATA_DIR", "/opt/data"))
 
 
-def download(key: str, dest: Path) -> Path:
+def download(key: str, dest: Path, count: int | None = None, only: InstrumentType | None = None) -> Path:
     """Stand-in for an S3 GetObject: each call "downloads" a different random instrument file."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random()
-    pq.write_table(make_instruments(rng, rng.randint(124, 324)), dest)
+    pq.write_table(make_instruments(rng, count or rng.randint(124, 324), only), dest)
     return dest
 
 
 @flow(name="ingest-instruments")  # dispatches the pricing jobs; no stages of its own, so a plain flow
-async def ingest_instruments(key: str = "instruments.parquet"):
+async def ingest_instruments(key: str = "instruments.parquet", count: int | None = None, only: str | None = None):
+    """``count`` sets how many instruments the fake download has; ``only`` (an instrument type) makes them all that type."""
     log = get_run_logger()
     run_dir = DATA_DIR / (flow_run.id or "local")
 
-    downloaded = download(key, run_dir / "downloaded.parquet")
+    downloaded = download(key, run_dir / "downloaded.parquet", count, InstrumentType(only) if only else None)
     table = pq.read_table(downloaded)
     log.info(f"downloaded s3://fake/{key}: {table.num_rows} rows")
 

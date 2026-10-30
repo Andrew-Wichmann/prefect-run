@@ -10,7 +10,11 @@ import threading
 import time as clock
 import urllib.error
 import urllib.request
+import tempfile
 import uuid
+import zipfile
+from functools import lru_cache
+from xml.sax.saxutils import escape
 from dataclasses import asdict
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -19,6 +23,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
+import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from psycopg.rows import dict_row
 
@@ -27,9 +33,9 @@ PREFECT = os.environ.get("PREFECT_API_URL", "http://prefect-server:4200/api")
 HERE = Path(__file__).parent
 CACHE = Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH", "/opt/cache"))
 SNAPSHOT_ROWS = 200  # most rows returned per request
-PAGES = {"/": "index.html"}
+PAGES = {"/": "index.html", "/data": "data.html"}
 ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascript; charset=utf-8" for n in
-          ["live", "tz", "stage-common", "layouts"]}}
+          ["live", "tz", "stage-common", "layouts", "data-common", "data-sql", "codemirror-sql", *[f"data-v{i}" for i in range(1, 10)]]}}
 
 sys.path.append("/opt/flows")  # job modules live next to the worker's flows
 import deploy  # noqa: E402  (lists the job modules)
@@ -374,7 +380,155 @@ def snapshot_rows(run_id, stage, task_run_id, offset):
     }
 
 
+# --- Stage-output viewer: the wide stress tables (one row per instrument, 700 pricing_scenario_N columns), paged. -----------------
+
+SCENARIO = "pricing_scenario_"
+
+
+def stage_file(run_id, stage, task_run_id=None):
+    """The Parquet result of this stage in the flow run (the latest task run unless one is named)."""
+    if not task_run_id:
+        snaps = snapshot_list(run_id, stage)["snapshots"]
+        if not snaps:
+            raise FileNotFoundError("no snapshot")
+        task_run_id = snaps[-1]["task_run_id"]
+    return _cache_file(prefect(f"/task_runs/{uuid.UUID(task_run_id)}"))
+
+
+@lru_cache(maxsize=2)
+def _load(path, mtime):
+    return pq.read_table(path)
+
+
+def load(path):
+    return _load(str(path), Path(path).stat().st_mtime_ns)
+
+
+def _outcomes(path):
+    meta = (pq.read_schema(path).metadata or {}).get(b"joule.outcomes")
+    if not meta:
+        return {}
+    o = json.loads(meta)
+    return {str(k): [s, d] for k, s, d in zip(o["key"], o["status"], o["detail"])}
+
+
+def matrix_chunks(path, row_offset, row_limit, col_offset, col_limit, key=None):
+    """JSON for a window of the table, yielded in pieces so a whole-table request never sits in memory as one string."""
+    t = load(path)
+    scen = [c for c in t.column_names if c.startswith(SCENARIO)]
+    if key:
+        t = t.filter(pc.equal(t["primary_key"], key))
+        row_offset = 0
+    rows = t.slice(row_offset, row_limit or None)
+    cols = scen[col_offset: col_offset + col_limit if col_limit else None]
+    out = _outcomes(path)
+    keys = rows["primary_key"].to_pylist()
+    head = {
+        "total_rows": t.num_rows, "total_cols": len(scen), "row_offset": row_offset, "col_offset": col_offset,
+        "columns": [c for c in t.column_names if not c.startswith(SCENARIO)], "scenario_names": cols,
+        "keys": keys, "outcomes": [out.get(k) for k in keys],
+        "price": rows["price"].to_pylist() if "price" in rows.column_names else None,
+        "curve_shift": rows["curve_shift"].to_pylist() if "curve_shift" in rows.column_names else None,
+    }
+    yield (json.dumps(head)[:-1] + ', "values": [').encode()
+    first = True
+    for i in range(0, rows.num_rows, 250):
+        part = rows.slice(i, 250)
+        lists = [part[c].to_pylist() for c in cols]
+        body = ",".join(json.dumps(list(r), separators=(",", ":")) for r in zip(*lists)) if lists else ""
+        if body:
+            yield ((b"" if first else b",") + body.encode())
+            first = False
+    yield b"]}"
+
+
+@lru_cache(maxsize=2)
+def _stats(path, mtime):
+    """Per-instrument summary of its 700 scenario prices, plus status; chunked so the whole table never becomes Python lists."""
+    t = load(path)
+    scen = [c for c in t.column_names if c.startswith(SCENARIO)]
+    out = _outcomes(path)
+    keys, price = t["primary_key"].to_pylist(), t["price"].to_pylist()
+    rows = []
+    for i in range(0, t.num_rows, 500):
+        lists = [t[c].slice(i, 500).to_pylist() for c in scen]
+        for j, vals in enumerate(zip(*lists)):
+            n, v = len(vals), sorted(vals)
+            mean = sum(vals) / n
+            std = (sum((x - mean) ** 2 for x in vals) / n) ** 0.5
+            k, p = keys[i + j], price[i + j]
+            rows.append({"key": k, "status": (out.get(k) or [None])[0], "price": p, "min": v[0], "p5": v[int(.05 * (n - 1))],
+                         "p50": v[(n - 1) // 2], "p95": v[int(.95 * (n - 1))], "max": v[-1], "mean": mean, "std": std,
+                         "worst_pct": (v[0] / p - 1) if p else None, "best_pct": (v[-1] / p - 1) if p else None})
+    return rows
+
+
+def stats_page(path, sort, desc, offset, limit, q):
+    rows = _stats(str(path), Path(path).stat().st_mtime_ns)
+    if q:
+        rows = [r for r in rows if q.lower() in r["key"].lower()]
+    if sort in ("key", "status", "price", "min", "p5", "p50", "p95", "max", "mean", "std", "worst_pct", "best_pct"):
+        rows = sorted(rows, key=lambda r: (r[sort] is None, r[sort]), reverse=desc)
+    return {"total": len(rows), "offset": offset, "rows": rows[offset: offset + limit]}
+
+
+@lru_cache(maxsize=2)
+def _scenarios(path, mtime):
+    """Each scenario's move across the instruments: mean, worst and best percentage change against the instrument's price."""
+    t = load(path)
+    price = t["price"]
+    out = []
+    for c in (c for c in t.column_names if c.startswith(SCENARIO)):
+        pct = pc.subtract(pc.divide(t[c], price), 1.0)
+        mm = pc.min_max(pct).as_py()
+        out.append({"n": int(c[len(SCENARIO):]), "mean": pc.mean(pct).as_py(), "min": mm["min"], "max": mm["max"]})
+    return out
+
+
+def write_xlsx(path, dest, row_offset, row_limit, col_offset, col_limit):
+    """An Excel workbook of a window of the stage output (key, status, price, curve_shift, then the scenario columns).
+    An .xlsx is a zip of XML, so this is written straight to disk row by row with the standard library (no extra packages)."""
+    t = load(path)
+    scen = [c for c in t.column_names if c.startswith(SCENARIO)]
+    other = [c for c in t.column_names if c not in scen]
+    cols = scen[col_offset: col_offset + col_limit if col_limit else None]
+    rows = t.slice(row_offset, row_limit or None)
+    out = _outcomes(path)
+    text = lambda v: f'<c t="inlineStr"><is><t>{escape(str(v))}</t></is></c>'  # noqa: E731
+    num = lambda v: "<c/>" if v is None else f"<c><v>{v!r}</v></c>"  # noqa: E731
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED, compresslevel=3) as z:
+        z.writestr("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
+        z.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        z.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="stage output" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
+        with z.open("xl/worksheets/sheet1.xml", "w", force_zip64=True) as f:
+            f.write(b'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="1" topLeftCell="C2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><sheetData>')
+            f.write(("<row>" + "".join(text(h) for h in ["primary_key", "status", *[c for c in other if c != "primary_key"], *cols]) + "</row>").encode())
+            for i in range(0, rows.num_rows, 250):
+                part = rows.slice(i, 250)
+                keys = part["primary_key"].to_pylist()
+                extra = [part[c].to_pylist() for c in other if c != "primary_key"]
+                lists = [part[c].to_pylist() for c in cols]
+                buf = []
+                for j, vals in enumerate(zip(*lists) if lists else [()] * part.num_rows):
+                    status = (out.get(keys[j]) or [""])[0]
+                    buf.append("<row>" + text(keys[j]) + text(status) + "".join(num(e[j]) for e in extra) + "".join(num(v) for v in vals) + "</row>")
+                f.write("".join(buf).encode())
+            f.write(b"</sheetData></worksheet>")
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _chunks(self, chunks, ctype):
+        """Send a body of unknown length; the connection closes at the end (HTTP/1.0), which marks it."""
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.end_headers()
+        try:
+            for c in chunks:
+                self.wfile.write(c)
+        except OSError:
+            pass
+
     def _send(self, body, ctype):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
@@ -418,6 +572,40 @@ class Handler(BaseHTTPRequestHandler):
                 data = snapshot_list(qs["run"][0], qs["stage"][0])
             elif url.path == "/api/snapshot":
                 data = snapshot_rows(qs["run"][0], qs["stage"][0], qs["task_run"][0], int(qs.get("offset", ["0"])[0]))
+            elif url.path in ("/api/matrix", "/api/stats", "/api/scenarios", "/api/parquet", "/api/outcomes", "/api/xlsx"):
+                q = {k: v[0] for k, v in qs.items()}
+                f = stage_file(q["run"], q["stage"], q.get("task_run"))
+                num = lambda k, d=0: max(int(q.get(k, d)), 0)  # noqa: E731
+                if url.path == "/api/matrix":
+                    return self._chunks(matrix_chunks(f, num("row_offset"), num("row_limit"), num("col_offset"), num("col_limit"),
+                                                      q.get("key")), "application/json")
+                if url.path == "/api/xlsx":
+                    with tempfile.NamedTemporaryFile(suffix=".xlsx") as tmp:
+                        write_xlsx(f, tmp.name, num("row_offset"), num("row_limit"), num("col_offset"), num("col_limit"))
+                        size = Path(tmp.name).stat().st_size
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        self.send_header("Content-Disposition", f'attachment; filename="{re.sub(r"[^A-Za-z0-9_-]", "_", q["stage"])}-{q["run"][:8]}.xlsx"')
+                        self.send_header("Content-Length", str(size))
+                        self.end_headers()
+                        while chunk := tmp.read(1 << 20):
+                            self.wfile.write(chunk)
+                    return
+                if url.path == "/api/parquet":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(f.stat().st_size))
+                    self.end_headers()
+                    with open(f, "rb") as fh:
+                        while chunk := fh.read(1 << 20):
+                            self.wfile.write(chunk)
+                    return
+                if url.path == "/api/outcomes":
+                    data = [{"primary_key": k, "status": v[0], "detail": v[1]} for k, v in _outcomes(f).items()]
+                elif url.path == "/api/scenarios":
+                    data = {"scenarios": _scenarios(str(f), f.stat().st_mtime_ns)}
+                else:
+                    data = stats_page(f, q.get("sort", "key"), q.get("dir") == "desc", num("offset"), min(num("limit", 50), 500), q.get("q", ""))
             elif url.path == "/api/instrument":
                 data = instrument_history(qs["run"][0], qs["key"][0])
             else:

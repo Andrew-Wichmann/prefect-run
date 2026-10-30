@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage output</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  header.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header.top h1 { margin: 0; font-size: 16px; }
+  header.top .backlink { text-decoration: none; color: var(--muted); font-size: 13px; }
+  nav.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); flex: none; }
+  nav.tabs button { font: inherit; font-size: 13px; padding: 8px 12px; background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  nav.tabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--run); }
+  #blurb { padding: 8px 16px; font-size: 12px; color: var(--muted); flex: none; }
+  #view { flex: 1; min-height: 0; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; flex: none; }
+  .tools .sp { flex: 1; }
+  .btn, .tools select, .tools input, .tools textarea { font: inherit; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; }
+  .btn { cursor: pointer; }
+  .btn:hover:not(:disabled) { background: var(--sel); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.primary { border-color: var(--run); color: var(--run); }
+  .scroll { overflow: auto; border: 1px solid var(--line); border-radius: 8px; flex: 1; min-height: 120px; position: relative; }
+  table.dt { width: auto; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.dt th, table.dt td { padding: 3px 8px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  table.dt thead th { position: sticky; top: 0; background: var(--bg); z-index: 2; color: var(--muted); font-weight: 500; }
+  table.dt th:first-child, table.dt td:first-child { position: sticky; left: 0; background: var(--bg); text-align: left; z-index: 1; }
+  table.dt thead th:first-child { z-index: 3; }
+  .st { display: inline-flex; gap: 5px; align-items: center; }
+  .st::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--gray)); }
+  .st.failed { --c: var(--failed); } .st.stressed, .st.calibrated, .st.passed { --c: var(--run); } .st.uploaded { --c: var(--ok); }
+  .note { color: var(--muted); font-size: 12px; }
+  .err { color: var(--failed); font-size: 13px; padding: 12px; white-space: pre-wrap; }
+  .xterm-viewport { background-color: transparent !important; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .stat { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="backlink" href="./">← Dashboard</a>
+  <h1 id="title">Stage output</h1>
+  <span id="meta" class="note"></span>
+</header>
+<nav class="tabs" id="tabs" role="tablist"></nav>
+<div id="blurb"></div>
+<div id="view"></div>
+<script src="data-common.js"></script>
+<script src="data-v1.js"></script>
+<script src="data-v2.js"></script>
+<script src="data-v3.js"></script>
+<script src="data-v4.js"></script>
+<script src="data-v5.js"></script>
+<script src="data-v6.js"></script>
+<script src="data-v7.js"></script>
+<script src="data-sql.js"></script>
+<script src="data-v8.js"></script>
+<script src="data-v9.js"></script>
+<script>boot();</script>
+</body>
+</html>
