@@ -31,6 +31,17 @@
   tr.filters th { padding: 4px 6px; font-weight: normal; }
   tr.filters input, tr.filters select { width: 100%; min-width: 80px; box-sizing: border-box; font: inherit; padding: 3px 6px;
     border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .pillsel { position: relative; min-width: 110px; }
+  .pillsel .trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; font: inherit; padding: 2px 6px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; }
+  .pillsel .opts { position: fixed; z-index: 30; display: grid; gap: 2px; padding: 6px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / .28); }
+  .pillsel .opts[hidden] { display: none; }
+  .pillsel .opts button { display: flex; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .pillsel .opts button:hover, .pillsel .opts button:focus-visible { background: color-mix(in srgb, var(--run) 14%, transparent); outline: none; }
+  .pillsel .opts button[aria-selected=true] { background: var(--sel); }
+  .pillsel .caret, .pillsel .all { color: var(--muted); }
+  .pillsel .caret { font-size: 10px; }
   .stage-card { cursor: pointer; }
   .stage-card:hover, .stage-card.selected { border-color: var(--run); }
   .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
@@ -48,7 +59,7 @@
         <tr class="filters">
           <th><select id="f-job" aria-label="Filter by job"></select></th>
           <th><input id="f-cob" type="date" aria-label="Filter by COB"></th>
-          <th><select id="f-status" aria-label="Filter by status"></select></th>
+          <th><div id="f-status"></div></th>
           <th></th><th></th>
           <th><input id="f-minutes" type="number" min="0" step="any" placeholder="≥ min" aria-label="Minimum duration in minutes"></th>
           <th><select id="f-sla" aria-label="Filter by delivery SLA">
@@ -138,6 +149,48 @@ const jobFilters = { job: "f-job", cob: "f-cob", status: "f-status", min_minutes
 const jobQuery = () => Object.entries(jobFilters)
   .map(([k, id]) => [k, $(id).value.trim()]).filter(([, v]) => v)
   .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join("");
+// A select whose options are the status pills (a native <select> cannot style its options). It behaves like one to the
+// rest of the page: `.value` is the chosen status ("" for All), "input" fires when it changes, and `.fill(names)` sets the options.
+function pillSelect(el, label) {
+  let value = "";
+  el.classList.add("pillsel");
+  el.innerHTML = `<button type="button" class="trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(label)}"></button><div class="opts" role="listbox" hidden></div>`;
+  const [trigger, menu] = el.children;
+  const label_ = (v) => v ? pill(v, v.toUpperCase()) : `<span class="all">All</span>`;
+  const draw = () => {
+    trigger.innerHTML = `${label_(value)}<span class="caret" aria-hidden="true">▾</span>`;
+    for (const b of menu.children) b.setAttribute("aria-selected", b.dataset.v === value);
+  };
+  const close = (refocus) => { menu.hidden = true; trigger.setAttribute("aria-expanded", "false"); if (refocus) trigger.focus(); };
+  const choose = (v) => { const changed = v !== value; value = v; draw(); close(true); if (changed) el.dispatchEvent(new Event("input", { bubbles: true })); };
+  const open = () => {
+    const r = trigger.getBoundingClientRect();  // the menu is fixed-position so the table's scroll area cannot clip it
+    Object.assign(menu.style, { top: `${r.bottom + 4}px`, left: `${r.left}px`, minWidth: `${r.width}px` });
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    (menu.querySelector("[aria-selected=true]") || menu.firstElementChild)?.focus();
+  };
+  Object.defineProperty(el, "value", { get: () => value, set: (v) => { value = v; draw(); } });
+  el.fill = (names) => {
+    if (menu.children.length) return;
+    menu.innerHTML = ["", ...names].map((v) => `<button type="button" role="option" tabindex="-1" data-v="${esc(v)}">${label_(v)}</button>`).join("");
+    draw();
+  };
+  trigger.onclick = () => menu.hidden ? open() : close(true);
+  menu.onclick = (e) => { const b = e.target.closest("[role=option]"); if (b) choose(b.dataset.v); };
+  menu.onkeydown = (e) => {
+    const items = [...menu.children], i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); e.preventDefault(); }
+    else if (e.key === "Escape") close(true);
+    else if (e.key === "Tab") close(false);
+  };
+  document.addEventListener("click", (e) => { if (!el.contains(e.target)) close(false); });
+  addEventListener("resize", () => close(false));
+  addEventListener("scroll", () => close(false), true);
+  draw();
+}
+pillSelect($("f-status"), "Filter by status");
+
 const fillSelect = (el, values) => {
   if (el.options.length) return;
   el.innerHTML = `<option value="">All</option>` + values.map((v) => `<option>${esc(v)}</option>`).join("");
@@ -148,7 +201,7 @@ async function loadPage() {
   if (!r.ok) { $("rows").innerHTML = `<tr><td colspan="9">Could not load jobs</td></tr>`; return; }
   const d = await r.json();
   fillSelect($("f-job"), d.jobs);
-  fillSelect($("f-status"), d.statuses);
+  $("f-status").fill(d.statuses);
   pages = Math.max(1, Math.ceil(d.total / d.page_size));
   if (page >= pages) { page = pages - 1; return loadPage(); }
   $("rows").innerHTML = d.rows.map((x) => `
