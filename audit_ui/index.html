@@ -14,8 +14,6 @@
   .pager button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px;
     background: none; color: inherit; cursor: pointer; }
   .pager button:disabled { opacity: .4; cursor: default; }
-  #stage-rows tr { cursor: pointer; }
-  #stage-rows tr:hover td { background: color-mix(in srgb, var(--muted) 12%, transparent); }
   button.snap, button.bust { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
   #stagedata { width: 96vw; height: 92vh; max-width: none; padding: 0; }
   #stagedata[open] { display: flex; flex-direction: column; }
@@ -108,20 +106,7 @@
 
     <section id="stage-detail" hidden>
       <div class="legend" id="legend"></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Instrument</th><th>Status</th><th>Detail</th><th>Recorded</th></tr>
-            <tr class="filters">
-              <th><input id="s-key" placeholder="Filter" aria-label="Filter by instrument"></th>
-              <th><select id="s-status" aria-label="Filter by status"></select></th>
-              <th><input id="s-detail" placeholder="Filter" aria-label="Filter by detail"></th>
-              <th><input id="s-at" placeholder="Filter" aria-label="Filter by recorded time"></th>
-            </tr>
-          </thead>
-          <tbody id="stage-rows"></tbody>
-        </table>
-      </div>
+      <div id="stage-grid" style="height:min(70vh,640px)"></div>
     </section>
   </section>
 </main>
@@ -149,13 +134,11 @@ const sla = (v) => v === true ? `<span class="ok">✓</span>` : v === false ? `<
 const slaText = ({ time, tz, day_offset = 0 }) => `${fmtZoned(time, tz)} T${day_offset ? "+" + day_offset : ""} · ${tz.split("/").pop().replace(/_/g, " ")}`;
 
 
-let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null, stageItems = [];
+let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null;
 const STATUSES = ["init", "passed", "calibrated", "stressed", "uploaded", "failed"];
 const badge = (s) => `<span class="cell ${esc(s)}"><span class="dot"></span>${esc(s)}</span>`;
 const when = (t) => fmtTime(t, { date: true });
 $("legend").innerHTML = STATUSES.map(badge).join("");
-$("s-status").innerHTML = `<option value="">All</option>` + STATUSES.map((v) => `<option>${v}</option>`).join("");
-for (const id of ["s-key", "s-status", "s-detail", "s-at"]) $(id).addEventListener("input", () => renderStage());
 
 const jobFilters = { job: "f-job", cob: "f-cob", status: "f-status", min_minutes: "f-minutes", sla: "f-sla", dsla: "f-dsla" };
 const jobQuery = () => Object.entries(jobFilters)
@@ -245,23 +228,47 @@ async function loadDetail() {
   $("meta").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
 }
 
+// The stage's per-instrument outcomes in AG Grid's infinite row model: the server pages, sorts and filters (10,000+ rows).
+let stageGrid = null, stageGridKey = null;
 async function loadStage() {
   if (!selected || !stage) { $("stage-detail").hidden = true; return; }
-  const r = await fetch(`api/stage?run=${encodeURIComponent(selected)}&stage=${encodeURIComponent(stage)}`);
-  if (!r.ok) return;
-  stageItems = (await r.json()).items;
-  renderStage();
-}
-
-function renderStage() {
-  $("stage-detail").hidden = !stage;
-  const key = $("s-key").value.trim().toLowerCase(), st = $("s-status").value, det = $("s-detail").value.trim().toLowerCase(), at = $("s-at").value.trim().toLowerCase();
-  const items = stageItems.filter((i) =>
-    i.key.toLowerCase().includes(key) && (!st || i.status === st) && (i.detail || "").toLowerCase().includes(det) && when(i.at).toLowerCase().includes(at));
-  $("stage-rows").innerHTML = items.map((i) => `<tr data-key="${esc(i.key)}">
-    <td><code>${esc(i.key)}</code></td><td>${badge(i.status)}</td><td>${esc(i.detail || "")}</td>
-    <td class="muted nw">${when(i.at)}</td></tr>`).join("")
-    || `<tr><td colspan="4" class="muted">${stageItems.length ? "No instruments match" : "This stage has not recorded anything for this run yet"}</td></tr>`;
+  $("stage-detail").hidden = false;
+  const k = `${selected}|${stage}`;
+  if (stageGrid && stageGridKey === k) return void stageGrid.refreshInfiniteCache();
+  stageGridKey = k;
+  if (stageGrid) return void stageGrid.purgeInfiniteCache();
+  await agGridReady();
+  if (stageGrid) return;
+  const box = $("stage-grid");
+  box.className = agTheme();
+  const filter = { filter: "agTextColumnFilter", floatingFilter: true, suppressHeaderMenuButton: true, filterParams: { buttons: [], suppressAndOrCondition: true, defaultOption: "contains", maxNumConditions: 1 } };
+  stageGrid = agGrid.createGrid(box, {
+    columnDefs: [
+      { headerName: "Instrument", field: "key", flex: 1, minWidth: 140, cellRenderer: (p) => p.value == null ? "" : `<code>${esc(p.value)}</code>`, ...filter },
+      { headerName: "Status", field: "status", width: 140, cellRenderer: (p) => p.value ? badge(p.value) : "", ...filter },
+      { headerName: "Detail", field: "detail", flex: 2, minWidth: 160, ...filter },
+      { headerName: "Recorded", field: "at", width: 240, valueFormatter: (p) => p.value ? when(p.value) : "", ...filter },
+    ],
+    defaultColDef: { sortable: true, resizable: true },
+    rowModelType: "infinite", cacheBlockSize: 100, maxBlocksInCache: 20, infiniteInitialRowCount: 100,
+    overlayNoRowsTemplate: "No instruments recorded for this stage in this run yet",
+    onRowClicked: (e) => { if (e.data) { openKey = e.data.key; loadInstrument(); } },
+    getRowStyle: () => ({ cursor: "pointer" }),
+    datasource: {
+      async getRows(p) {
+        const q = new URLSearchParams({ run: selected, stage, offset: p.startRow, limit: p.endRow - p.startRow });
+        for (const [col, f] of Object.entries(p.filterModel || {})) if (f.filter) q.set(col, f.filter);
+        const s = p.sortModel?.[0];
+        if (s) { q.set("sort", s.colId); q.set("dir", s.sort); }
+        try {
+          const r = await fetch(`api/stage?${q}`);
+          if (!r.ok) throw new Error(r.status);
+          const d = await r.json();
+          p.successCallback(d.items, d.total);
+        } catch (e) { p.failCallback(); }
+      },
+    },
+  });
 }
 
 $("stages").addEventListener("keydown", (e) => {
@@ -283,12 +290,6 @@ async function loadInstrument() {
   if (!$("instrument").open) $("instrument").showModal();
 }
 
-$("stage-rows").addEventListener("click", (e) => {
-  const tr = e.target.closest("tr[data-key]");
-  if (!tr) return;
-  openKey = tr.dataset.key;
-  loadInstrument();
-});
 $("instrument").addEventListener("close", () => { openKey = null; });
 $("instrument").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 

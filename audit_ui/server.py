@@ -311,14 +311,21 @@ def job_detail(run_id):
     }
 
 
-def stage_history(run_id, stage):
-    """What one stage did to each instrument in a single run."""
-    rows = query(
-        "SELECT item_key, status, detail, recorded_at FROM stage_audit "
-        "WHERE flow_run_id = %s AND stage_name = %s ORDER BY item_key",
-        (run_id, stage),
-    )
-    return {"items": [{"key": r["item_key"], "status": r["status"], "detail": r["detail"], "at": r["recorded_at"]} for r in rows]}
+def stage_history(run_id, stage, offset=0, limit=100, filters=None, sort="key", direction="asc"):
+    """What one stage did to each instrument in a single run: one page, filtered and sorted in the database."""
+    cols = {"key": "item_key", "status": "status", "detail": "detail", "at": "recorded_at::text"}
+    where, params = ["flow_run_id = %s", "stage_name = %s"], [run_id, stage]
+    for name, text in (filters or {}).items():
+        if name in cols and text:
+            like = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            where.append(f"COALESCE({cols[name]}::text, '') ILIKE %s")
+            params.append(f"%{like}%")
+    where = " AND ".join(where)
+    order = f"{cols.get(sort, 'item_key').split('::')[0]} {'DESC' if direction == 'desc' else 'ASC'}, item_key"
+    total = query(f"SELECT count(*) AS n FROM stage_audit WHERE {where}", params)[0]["n"]
+    rows = query(f"SELECT item_key, status, detail, recorded_at FROM stage_audit WHERE {where} ORDER BY {order} LIMIT %s OFFSET %s",
+                 [*params, min(max(limit, 1), 1000), max(offset, 0)])
+    return {"total": total, "items": [{"key": r["item_key"], "status": r["status"], "detail": r["detail"], "at": r["recorded_at"]} for r in rows]}
 
 
 def instrument_history(run_id, key):
@@ -567,7 +574,8 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == "/api/job":
                 data = job_detail(qs["run"][0])
             elif url.path == "/api/stage":
-                data = stage_history(qs["run"][0], qs["stage"][0])
+                data = stage_history(qs["run"][0], qs["stage"][0], int(qs.get("offset", ["0"])[0]), int(qs.get("limit", ["100"])[0]),
+                                     {k: qs[k][0] for k in ("key", "status", "detail", "at") if k in qs}, qs.get("sort", ["key"])[0], qs.get("dir", ["asc"])[0])
             elif url.path == "/api/snapshots":
                 data = snapshot_list(qs["run"][0], qs["stage"][0])
             elif url.path == "/api/snapshot":

@@ -31,6 +31,9 @@
   })();
   const theme = () => `ag-theme-quartz${dark() ? "-dark" : ""}`;
 
+  window.agGridReady = ensureAgGrid;
+  window.agTheme = theme;
+
   // The SQL to run: the highlighted text if any; otherwise the statement (split on ;) under the cursor.
   function sqlToRun(text, from, to) {
     if (from !== to) return text.slice(Math.min(from, to), Math.max(from, to));
