@@ -1,6 +1,6 @@
 // The stage timeline for the job detail page. Three columns (name + icon actions | Gantt | mix and timing) when the
 // widget is wide; it reflows by the widget's own width, not the viewport's, to name + actions / Gantt / mix when narrow.
-// The actions are small icon buttons with tooltips (rerun from this stage, open in Prefect). Every row is a
+// The actions are small icon buttons with tooltips (rerun from this stage; the Prefect logo opens it in Prefect). Every row is a
 // "stage-card" with data-stage, which the page's click handler uses to show that stage's table below.
 // (Helpers are in stage-common.js.)
 addStyle(`
@@ -16,6 +16,7 @@ addStyle(`
   .v3 .ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
     border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; text-decoration: none; cursor: pointer; }
   .v3 .ico:hover { border-color: var(--run); }
+  .v3 .ico .picon { width: 16px; height: 16px; }
   @container (max-width: 640px) {
     .v3 .row3 { grid-template-columns: 1fr auto; grid-template-areas: "who tools" "track track" "facts facts"; }
     .v3 .row3.axis3 { grid-template-areas: "track track"; }
@@ -29,7 +30,7 @@ function renderStages(j, stage) {
     const t = g.T[n];
     return `<div ${cardAttrs(n, stage, "row3")}>
       <div class="who"><b>${esc(n)}</b>${g.status(n)}</div>
-      <div class="tools">${bustButton(j, n, "↻", "ico")}${openLink(t, "↗", "ico")}</div>
+      <div class="tools">${bustButton(j, n, "↻", "ico")}${openLink(t, PREFECT_ICON, "ico")}</div>
       ${g.track(n)}
       <div class="facts">${g.mix(n)}<span class="cnt">${g.took(n)} · usually ${g.usually(n)}</span></div></div>`;
   }).join("");
