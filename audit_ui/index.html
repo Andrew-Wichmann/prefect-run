@@ -173,7 +173,7 @@ async function loadDetail() {
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
     ["Status", pill(j.status, j.status_type) + ` <span class="muted">${esc(j.run_name)}</span>`],
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
-    ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>`],
+    ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>` + (j.deployment_id ? ` <button class="bust" data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "")],
   ];
   stageNames = j.stages;
   $("stages").innerHTML = renderStages(j, stage);
@@ -274,13 +274,25 @@ async function startRun(btn) {
     });
     if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
     const run = await r.json();
-    btn.outerHTML = `<a class="tlink" href="?run=${esc(run.id)}">started: ${esc(run.name)} →</a>`;
+    if ("select" in btn.dataset) {  // the card's own button: show the run it started
+      selected = run.id;
+      btn.disabled = false;
+      btn.textContent = btn.dataset.label;
+      loadPage(); loadDetail(); loadStage();
+    } else {
+      btn.outerHTML = `<a class="tlink" href="?run=${esc(run.id)}">started: ${esc(run.name)} →</a>`;
+    }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "rerun from here";
+    btn.textContent = btn.dataset.label || "rerun from here";
     alert(`Could not start the run: ${err.message}`);
   }
 }
+
+$("meta").addEventListener("click", (e) => {
+  const b = e.target.closest("button.bust");
+  if (b) startRun(b);
+});
 
 $("stages").addEventListener("click", (e) => {
   const view = e.target.closest("button.snap");
