@@ -198,15 +198,13 @@ def jobs_history(page, f):
             break
 
     rows = [run_info(r, flows[r["flow_id"]]) for r in runs]
-    text = f.get("run", "").lower()
     sla_filter = {"met": True, "missed": False, "pending": None}.get(f.get("sla"), "any")
     dsla_filter = {"met": True, "missed": False, "pending": None}.get(f.get("dsla"), "any")
     min_s = float(f["min_minutes"]) * 60 if f.get("min_minutes") else None
     rows = [
         r
         for r in rows
-        if text in r["run_name"].lower()
-        and (not f.get("cob") or r["cob"] == f["cob"])
+        if (not f.get("cob") or r["cob"] == f["cob"])
         and (sla_filter == "any" or r["sla_met"] is sla_filter)
         and (dsla_filter == "any" or r["duration_sla_met"] is dsla_filter)
         and (min_s is None or (r["duration_s"] or 0) >= min_s)

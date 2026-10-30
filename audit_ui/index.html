@@ -44,9 +44,8 @@
 <main>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Run</th><th>Job</th><th>COB</th><th>Status</th><th>Start</th><th>End</th><th>Duration</th><th>Delivery SLA</th><th>Duration SLA</th></tr>
+      <thead><tr><th>Job</th><th>COB</th><th>Status</th><th>Start</th><th>End</th><th>Duration</th><th>Delivery SLA</th><th>Duration SLA</th></tr>
         <tr class="filters">
-          <th><input id="f-run" placeholder="Filter" aria-label="Filter by run"></th>
           <th><select id="f-job" aria-label="Filter by job"></select></th>
           <th><input id="f-cob" type="date" aria-label="Filter by COB"></th>
           <th><select id="f-status" aria-label="Filter by status"></select></th>
@@ -134,7 +133,7 @@ $("legend").innerHTML = STATUSES.map(badge).join("");
 $("s-status").innerHTML = `<option value="">All</option>` + STATUSES.map((v) => `<option>${v}</option>`).join("");
 for (const id of ["s-key", "s-status", "s-detail", "s-at"]) $(id).addEventListener("input", () => renderStage());
 
-const jobFilters = { run: "f-run", job: "f-job", cob: "f-cob", status: "f-status", min_minutes: "f-minutes", sla: "f-sla", dsla: "f-dsla" };
+const jobFilters = { job: "f-job", cob: "f-cob", status: "f-status", min_minutes: "f-minutes", sla: "f-sla", dsla: "f-dsla" };
 const jobQuery = () => Object.entries(jobFilters)
   .map(([k, id]) => [k, $(id).value.trim()]).filter(([, v]) => v)
   .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join("");
@@ -153,9 +152,9 @@ async function loadPage() {
   if (page >= pages) { page = pages - 1; return loadPage(); }
   $("rows").innerHTML = d.rows.map((x) => `
     <tr class="row ${x.run_id === selected ? "selected" : ""}" data-run="${esc(x.run_id)}">
-      <td>${esc(x.run_name)}</td><td>${esc(x.job)}</td><td>${esc(x.cob || "–")}</td><td>${pill(x.status, x.status_type)}</td>
+      <td>${esc(x.job)}</td><td>${esc(x.cob || "–")}</td><td>${pill(x.status, x.status_type)}</td>
       <td class="nw">${clock(x.start_time)}</td><td class="nw">${clock(x.end_time)}</td><td>${mins(x.duration_s)}</td><td>${sla(x.sla_met)}</td><td>${sla(x.duration_sla_met)}</td>
-    </tr>`).join("") || `<tr><td colspan="9" class="muted">No runs match</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="8" class="muted">No runs match</td></tr>`;
   $("pageinfo").textContent = `Page ${page + 1} of ${pages} · ${d.total} runs`;
   $("prev").disabled = page === 0;
   $("next").disabled = page + 1 >= pages;
