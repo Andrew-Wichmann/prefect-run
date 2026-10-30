@@ -42,6 +42,11 @@
   .pillsel .opts button[aria-selected=true] { background: var(--sel); }
   .pillsel .caret, .pillsel .all { color: var(--muted); }
   .pillsel .caret { font-size: 10px; }
+  #detail { position: relative; }
+  .detail-ico { position: absolute; top: 0; right: 0; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line);
+    border-radius: 6px; color: inherit; text-decoration: none; }
+  .detail-ico:hover { border-color: var(--run); }
+  .detail-ico .picon { width: 18px; height: 18px; }
   .stage-card { cursor: pointer; }
   .stage-card:hover, .stage-card.selected { border-color: var(--run); }
   .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
@@ -80,6 +85,7 @@
 
   <section id="detail" hidden>
     <p class="eyebrow">Job detail</p>
+    <a id="prefect-link" class="detail-ico" title="Open this run in Prefect" aria-label="Open this run in Prefect"></a>
     <dl class="meta" id="meta"></dl>
     <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
     <div id="stages"></div>
@@ -219,12 +225,14 @@ async function loadDetail() {
   if (!r.ok) return;
   const j = await r.json();
   $("detail").hidden = false;
+  $("prefect-link").href = j.url;
+  $("prefect-link").innerHTML = PREFECT_ICON;
   const rows = [
     ["Delivery SLA", `${slaText(j.sla)} ${sla(j.sla_met)}` + (j.sla_deadline ? ` <span class="muted">due ${fmtTime(j.sla_deadline, { seconds: false, date: true })}</span>` : "")],
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
     ["Status", pill(j.status, j.status_type)],
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
-    ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>` + (j.deployment_id ? ` <button class="bust" data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "")],
+    ["Flow run", (j.deployment_id ? `<button class="bust" data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "")],
   ];
   stageNames = j.stages;
   $("stages").innerHTML = renderStages(j, stage);
