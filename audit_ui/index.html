@@ -87,7 +87,7 @@
   </div>
 
   <section id="detail" hidden>
-    <p class="eyebrow">Job detail</p>
+    <h2 class="job-title" id="name"></h2>
     <div class="detail-card"><div id="rerun" class="detail-act"></div><dl class="meta" id="meta"></dl></div>
     <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
     <div id="stages"></div>
@@ -227,6 +227,7 @@ async function loadDetail() {
   if (!r.ok) return;
   const j = await r.json();
   $("detail").hidden = false;
+  $("name").textContent = j.name;
   const rows = [
     ["Delivery SLA", `${slaText(j.sla)} ${sla(j.sla_met)}` + (j.sla_deadline ? ` <span class="muted">due ${fmtTime(j.sla_deadline, { seconds: false, date: true })}</span>` : "")],
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
