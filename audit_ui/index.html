@@ -42,12 +42,14 @@
   .pillsel .opts button[aria-selected=true] { background: var(--sel); }
   .pillsel .caret, .pillsel .all { color: var(--muted); }
   .pillsel .caret { font-size: 10px; }
-  #detail { position: relative; }
-  .detail-act { position: absolute; top: 0; right: 0; }
+  .detail-card { position: relative; margin-top: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+  .detail-card .meta { padding: 0; border: 0; padding-right: 76px; }  /* leave room for the buttons in the corner */
+  .detail-act { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
   /* same look as the stage rows' icon buttons (.v3 .ico in layouts.js) */
-  .detail-act button.ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
-    border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }
-  .detail-act button.ico:hover { border-color: var(--run); }
+  .detail-act .ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
+    border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; text-decoration: none; cursor: pointer; }
+  .detail-act .ico:hover { border-color: var(--run); }
+  .detail-act .picon { width: 16px; height: 16px; }
   .stage-card { cursor: pointer; }
   .stage-card:hover, .stage-card.selected { border-color: var(--run); }
   .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
@@ -86,8 +88,7 @@
 
   <section id="detail" hidden>
     <p class="eyebrow">Job detail</p>
-    <span id="rerun" class="detail-act"></span>
-    <dl class="meta" id="meta"></dl>
+    <div class="detail-card"><div id="rerun" class="detail-act"></div><dl class="meta" id="meta"></dl></div>
     <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
     <div id="stages"></div>
 
@@ -231,9 +232,8 @@ async function loadDetail() {
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
     ["Status", pill(j.status, j.status_type)],
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
-    ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>`],
   ];
-  $("rerun").innerHTML = j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "";
+  $("rerun").innerHTML = (j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "") + `<a class="ico" href="${esc(j.url)}" title="Open this run in Prefect" aria-label="Open in Prefect">${PREFECT_ICON}</a>`;
   stageNames = j.stages;
   $("stages").innerHTML = renderStages(j, stage);
   $("meta").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
