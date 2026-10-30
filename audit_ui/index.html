@@ -145,7 +145,7 @@ const slaText = ({ time, tz, day_offset = 0 }) => `${fmtZoned(time, tz)} T${day_
 
 
 let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null, stageItems = [];
-const STATUSES = ["init", "passed", "calibrated", "priced", "uploaded", "failed"];
+const STATUSES = ["init", "passed", "calibrated", "stressed", "uploaded", "failed"];
 const badge = (s) => `<span class="cell ${esc(s)}"><span class="dot"></span>${esc(s)}</span>`;
 const when = (t) => fmtTime(t, { date: true });
 $("legend").innerHTML = STATUSES.map(badge).join("");

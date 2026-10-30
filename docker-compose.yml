@@ -70,7 +70,7 @@ services:
       audit-postgres:
         condition: service_healthy
 
-  # One-shot: registers the price-bond-futures deployment against the server.
+  # One-shot: registers the stress-bond-futures deployment against the server.
   prefect-deploy:
     build: .
     image: prefect-run-worker

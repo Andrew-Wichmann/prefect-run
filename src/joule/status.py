@@ -7,7 +7,7 @@ class Status(str, Enum):
     INIT = "init"
     PASSED = "passed"
     CALIBRATED = "calibrated"
-    PRICED = "priced"
+    STRESSED = "stressed"
     UPLOADED = "uploaded"
     FAILED = "failed"
 

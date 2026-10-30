@@ -4,11 +4,11 @@ from prefect import Flow, flow
 
 JOBS = [
     "ingest_instruments",
-    "price_bond_futures",
-    "price_fixed_income_repos",
-    "price_interest_rate_swaps",
-    "price_mortgage_backed_security",
-    "price_to_be_announced",
+    "stress_bond_futures",
+    "stress_fixed_income_repos",
+    "stress_interest_rate_swaps",
+    "stress_mortgage_backed_security",
+    "stress_to_be_announced",
 ]
 
 MAINTENANCE = ["cleanup_cache"]  # not jobs: no stages, SLAs or dashboard page

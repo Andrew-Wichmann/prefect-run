@@ -11,9 +11,9 @@ import pyarrow.parquet as pq
 from joule import PRIMARY_KEY, Outcome, Sla, Status
 
 # Schemas chain: each stage's out_schema is the next stage's in_schema.
-RAW = pa.schema([(PRIMARY_KEY, pa.string()), ("last", pa.float64())])
+RAW = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])
 CALIBRATED = RAW.append(pa.field("curve_shift", pa.float64()))
-PRICED = CALIBRATED.append(pa.field("price", pa.float64()))
+STRESSED = CALIBRATED.append(pa.field("stressed_price", pa.float64()))
 
 
 DELIVERY_SLA = Sla(time="07:00", tz="America/New_York", day_offset=1)
@@ -39,7 +39,7 @@ def with_failures(
 
 def read_raw(path: str) -> pa.Table:
     """Load a job's input parquet, keeping just the RAW columns."""
-    return pq.read_table(path, columns=[PRIMARY_KEY, "last"])
+    return pq.read_table(path, columns=[PRIMARY_KEY, "price"])
 
 
 def mock_work(low: float = 1.0, high: float = 5.0) -> None:

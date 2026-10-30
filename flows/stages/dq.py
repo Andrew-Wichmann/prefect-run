@@ -4,8 +4,8 @@ from joule import Status, stage
 from stages.common import RAW, mock_work, with_failures
 
 REASONS = [
-    "last price is null",
-    "last price differs from previous close by more than 20%",
+    "price is null",
+    "price differs from previous close by more than 20%",
     "quote is stale (older than 15 minutes)",
     "bid is above ask",
     "instrument_type is not recognised",

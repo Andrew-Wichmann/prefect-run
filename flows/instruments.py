@@ -15,14 +15,14 @@ class InstrumentType(str, Enum):
     EQUITY_FUTURE = "equity_future"
 
 
-# Deployment ("<flow name>/<deployment name>") that prices each type. Types
+# Deployment ("<flow name>/<deployment name>") that stresses each type. Types
 # without an entry have no job yet.
 JOB_FOR: dict[InstrumentType, str] = {
-    InstrumentType.BOND_FUTURE: "price-bond-futures/price-bond-futures",
-    InstrumentType.FIXED_INCOME_REPO: "price-fixed-income-repos/price-fixed-income-repos",
-    InstrumentType.INTEREST_RATE_SWAP: "price-interest-rate-swaps/price-interest-rate-swaps",
-    InstrumentType.MORTGAGE_BACKED_SECURITY: "price-mortgage-backed-security/price-mortgage-backed-security",
-    InstrumentType.TO_BE_ANNOUNCED: "price-to-be-announced/price-to-be-announced",
+    InstrumentType.BOND_FUTURE: "stress-bond-futures/stress-bond-futures",
+    InstrumentType.FIXED_INCOME_REPO: "stress-fixed-income-repos/stress-fixed-income-repos",
+    InstrumentType.INTEREST_RATE_SWAP: "stress-interest-rate-swaps/stress-interest-rate-swaps",
+    InstrumentType.MORTGAGE_BACKED_SECURITY: "stress-mortgage-backed-security/stress-mortgage-backed-security",
+    InstrumentType.TO_BE_ANNOUNCED: "stress-to-be-announced/stress-to-be-announced",
 }
 
 
@@ -39,12 +39,12 @@ PREFIX = {
 
 
 def make_instruments(rng: random.Random, n: int) -> pa.Table:
-    """Fake instrument master: ``n`` rows of mixed type with a random last price."""
+    """Fake instrument master: ``n`` rows of mixed type with a random price."""
     types = [rng.choice(list(InstrumentType)) for _ in range(n)]
     return pa.table(
         {
             "primary_key": [f"{PREFIX[t]}-{i:04d}" for i, t in enumerate(types)],
             "instrument_type": [t.value for t in types],
-            "last": [round(rng.uniform(90, 120), 2) for _ in types],
+            "price": [round(rng.uniform(90, 120), 2) for _ in types],
         }
     )

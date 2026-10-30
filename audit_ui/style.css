@@ -23,7 +23,7 @@
   .cell { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .init { --c: var(--gray); }
-  .passed, .calibrated, .priced { --c: var(--run); }
+  .passed, .calibrated, .stressed { --c: var(--run); }
   .uploaded { --c: var(--ok); }
   .failed { --c: var(--failed); }
   .dot { background: var(--c, var(--gray)); }
