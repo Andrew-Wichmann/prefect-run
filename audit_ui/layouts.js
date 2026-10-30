@@ -9,7 +9,8 @@ addStyle(`
     grid-template-columns: minmax(110px, 170px) 1fr minmax(120px, 180px);
     grid-template-areas: "who track facts" "tools track facts"; }
   .v3 .row3.axis3 { grid-template-areas: "who track facts"; padding-top: 0; cursor: default; }
-  .v3 .who { grid-area: who; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; overflow-wrap: anywhere; }
+  .v3 .who { grid-area: who; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; overflow-wrap: anywhere; }
+  .v3 .who .pill { justify-self: end; }  /* names line up on the left, status pills on the right */
   .v3 .tools { grid-area: tools; display: flex; gap: 4px; }
   .v3 .row3 > .track, .v3 .axis3 > .axisl { grid-area: track; }
   .v3 .facts { grid-area: facts; min-width: 0; }
