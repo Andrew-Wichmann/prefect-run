@@ -80,7 +80,6 @@
 
   <section id="detail" hidden>
     <p class="eyebrow">Job detail</p>
-    <h2 class="job-title" id="name"></h2>
     <dl class="meta" id="meta"></dl>
     <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
     <div id="stages"></div>
@@ -220,11 +219,10 @@ async function loadDetail() {
   if (!r.ok) return;
   const j = await r.json();
   $("detail").hidden = false;
-  $("name").textContent = j.name;
   const rows = [
     ["Delivery SLA", `${slaText(j.sla)} ${sla(j.sla_met)}` + (j.sla_deadline ? ` <span class="muted">due ${fmtTime(j.sla_deadline, { seconds: false, date: true })}</span>` : "")],
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
-    ["Status", pill(j.status, j.status_type) + ` <span class="muted">${esc(j.run_name)}</span>`],
+    ["Status", pill(j.status, j.status_type)],
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
     ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>` + (j.deployment_id ? ` <button class="bust" data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "")],
   ];
