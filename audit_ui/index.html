@@ -31,6 +31,11 @@
   tr.filters th { padding: 4px 6px; font-weight: normal; }
   tr.filters input, tr.filters select { width: 100%; min-width: 80px; box-sizing: border-box; font: inherit; padding: 3px 6px;
     border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .variants-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin-top: 24px; }
+  .variants-row h3 { margin: 0; }
+  #variants { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
+  #variants a { padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); text-decoration: none; }
+  #variants a[aria-current] { border-color: var(--run); color: var(--fg); background: color-mix(in srgb, var(--run) 12%, transparent); }
   .stage-card { cursor: pointer; }
   .stage-card:hover, .stage-card.selected { border-color: var(--run); }
   .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
@@ -71,7 +76,10 @@
     <p class="eyebrow">Job detail</p>
     <h2 class="job-title" id="name"></h2>
     <dl class="meta" id="meta"></dl>
-    <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
+    <div class="variants-row">
+      <h3 class="eyebrow">Stages</h3>
+      <nav id="variants" aria-label="Stage widget version"></nav>
+    </div>
     <div id="stages"></div>
 
     <section id="stage-detail" hidden>
@@ -112,6 +120,7 @@
 </dialog>
 <script src="live.js"></script>
 <script src="tz.js"></script>
+<script src="stage-common.js"></script>
 <script src="layouts.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -125,6 +134,21 @@ const sla = (v) => v === true ? `<span class="ok">✓</span>` : v === false ? `<
 const slaText = ({ time, tz, day_offset = 0 }) => `${fmtZoned(time, tz)} T${day_offset ? "+" + day_offset : ""} · ${tz.split("/").pop().replace(/_/g, " ")}`;
 
 
+// Flip between the stage-widget versions (the server sets STAGE_VARIANT; v1 is the page itself), keeping the run and stage.
+const VARIANTS = ["v1", "v2", "v3", "v4", "v5", "v6"];
+const currentVariant = window.STAGE_VARIANT || "v1";
+$("variants").innerHTML = VARIANTS.map((v) => `<a href="${v === "v1" ? "." : v}" data-v="${v}" ${v === currentVariant ? "aria-current=page" : ""}>${v}</a>`).join("");
+$("variants").addEventListener("click", (e) => {
+  const a = e.target.closest("a");
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  e.preventDefault();
+  const q = new URLSearchParams();
+  if (selected) q.set("run", selected);
+  if (stage) q.set("stage", stage);
+  location.href = a.getAttribute("href") + (q.size ? `?${q}` : "");
+});
+
+let lastJob = null;  // the job detail last drawn, so a layout can redraw its stages when the selected stage changes
 let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null, stageItems = [];
 const STATUSES = ["init", "passed", "calibrated", "priced", "uploaded", "failed"];
 const badge = (s) => `<span class="cell ${esc(s)}"><span class="dot"></span>${esc(s)}</span>`;
@@ -175,6 +199,7 @@ async function loadDetail() {
     ["Flow run", `<a href="${esc(j.url)}">Open in Prefect</a>` + (j.deployment_id ? ` <button class="bust" data-label="rerun" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">rerun</button>` : "")],
   ];
   stageNames = j.stages;
+  lastJob = j;
   $("stages").innerHTML = renderStages(j, stage);
   $("meta").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
 }
@@ -300,11 +325,12 @@ $("stages").addEventListener("click", (e) => {
   if (view) return void openSnapshot(view.dataset.stage);
   const bust = e.target.closest("button.bust");
   if (bust) return void startRun(bust);
-  if (e.target.closest("a.tlink")) return;
+  if (e.target.closest("a.tlink, details.more")) return;
   const b = e.target.closest(".stage-card");
   if (!b) return;
   stage = stage === b.dataset.stage ? null : b.dataset.stage;
   document.querySelectorAll(".stage-card").forEach((x) => x.classList.toggle("selected", x.dataset.stage === stage));
+  if (window.rerenderOnSelect && lastJob) $("stages").innerHTML = renderStages(lastJob, stage);
   loadStage();
 });
 
@@ -325,6 +351,7 @@ $("prev").onclick = () => { page--; loadPage(); };
 $("next").onclick = () => { page++; loadPage(); };
 
 selected = new URLSearchParams(location.search).get("run");  // deep link to a run's detail
+stage = new URLSearchParams(location.search).get("stage");
 loadPage();
 loadDetail();
 
