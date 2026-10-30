@@ -6,11 +6,14 @@
 addStyle(`
   .v3 { container-type: inline-size; display: grid; gap: 6px; }
   .v3 .row3 { display: grid; gap: 4px 14px; align-items: center; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px;
-    grid-template-columns: minmax(110px, 170px) 1fr minmax(120px, 180px);
+    grid-template-columns: minmax(150px, 230px) 1fr minmax(120px, 180px);
     grid-template-areas: "who track facts" "tools track facts"; }
   .v3 .row3.axis3 { grid-template-areas: "who track facts"; padding-top: 0; cursor: default; }
-  .v3 .who { grid-area: who; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; overflow-wrap: anywhere; }
-  .v3 .who .pill { justify-self: end; }  /* names line up on the left, status pills on the right */
+  .v3 .whobox { grid-area: who; min-width: 0; }
+  /* name and status share a line while they fit; otherwise the status drops under the name (then the buttons, in .tools) */
+  .v3 .who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: break-word; }
+  .v3 .who b { min-width: 0; }
+  .v3 .who .pill { margin-left: auto; }  /* names line up on the left, status pills on the right */
   .v3 .tools { grid-area: tools; display: flex; gap: 4px; }
   .v3 .row3 > .track, .v3 .axis3 > .axisl { grid-area: track; }
   .v3 .facts { grid-area: facts; min-width: 0; }
@@ -31,7 +34,7 @@ function renderStages(j, stage) {
   const rows = g.S.map((n) => {
     const t = g.T[n];
     return `<div ${cardAttrs(n, stage, "row3")}>
-      <div class="who"><b>${esc(n)}</b>${g.status(n)}</div>
+      <div class="whobox"><div class="who"><b>${esc(n)}</b>${g.status(n)}</div></div>
       <div class="tools">${t?.id ? `<button class="snap ico" data-stage="${esc(n)}" title="View the stage's output data" aria-label="View data for ${esc(n)}">${DATA_ICON}</button>` : ""}${bustButton(j, n, "↻", "ico")}${openLink(t, PREFECT_ICON, "ico")}</div>
       ${g.track(n)}
       <div class="facts">${g.mix(n)}<span class="cnt">${g.took(n)} · usually ${g.usually(n)}</span></div></div>`;
