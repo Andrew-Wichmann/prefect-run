@@ -13,7 +13,10 @@ from joule import PRIMARY_KEY, Outcome, Sla, Status
 # Schemas chain: each stage's out_schema is the next stage's in_schema.
 RAW = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])
 CALIBRATED = RAW.append(pa.field("curve_shift", pa.float64()))
-STRESSED = CALIBRATED.append(pa.field("stressed_price", pa.float64()))
+SCENARIOS = 700
+SCENARIO_COLUMNS = [f"pricing_scenario_{i}" for i in range(1, SCENARIOS + 1)]
+STRESSED = pa.schema([*CALIBRATED, *(pa.field(name, pa.float64()) for name in SCENARIO_COLUMNS)])
+_SHOCKS = (lambda r: [r.gauss(0.0, 0.08) for _ in range(SCENARIOS)])(random.Random(2026))  # one market move per scenario, the same in every job
 
 
 DELIVERY_SLA = Sla(time="07:00", tz="America/New_York", day_offset=1)
@@ -35,6 +38,15 @@ def with_failures(
     statuses: dict[object, Outcome] = {k: (Status.FAILED, failed[k]) if k in failed else ok for k in keys}
     is_failed = pc.is_in(table[PRIMARY_KEY], value_set=pa.array(sorted(failed), pa.string()))
     return table.filter(pc.invert(is_failed)), statuses
+
+
+def add_scenarios(table: pa.Table, base: pa.ChunkedArray | pa.Array) -> pa.Table:
+    """Append the 700 ``pricing_scenario_N`` columns: ``base`` repriced under each scenario's market move,
+    scaled by a per-instrument sensitivity (stub for the real revaluation)."""
+    beta = pa.array([random.uniform(0.4, 1.6) for _ in range(len(base))])
+    prices = [pc.round(pc.multiply(base, pc.add(1.0, pc.multiply(beta, shock))), 4) for shock in _SHOCKS]
+    columns = [*table.columns, *prices]
+    return pa.Table.from_arrays(columns, schema=pa.schema([*table.schema, *(pa.field(n, pa.float64()) for n in SCENARIO_COLUMNS)]))
 
 
 def read_raw(path: str) -> pa.Table:

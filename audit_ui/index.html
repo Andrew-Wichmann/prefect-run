@@ -380,7 +380,6 @@ $("rows").addEventListener("click", (e) => {
   document.querySelectorAll("tr.row").forEach((x) => x.classList.toggle("selected", x === tr));
   loadDetail();
   loadStage();
-  $("detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 let filterTimer;
 for (const id of Object.values(jobFilters)) {
