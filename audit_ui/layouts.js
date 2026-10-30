@@ -6,7 +6,7 @@
 addStyle(`
   .v3 { container-type: inline-size; display: grid; gap: 6px; }
   .v3 .row3 { display: grid; gap: 4px 14px; align-items: center; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px;
-    grid-template-columns: minmax(150px, 230px) 1fr minmax(120px, 180px);
+    grid-template-columns: minmax(150px, 400px) 1fr minmax(120px, 180px);
     grid-template-areas: "who track facts" "tools track facts"; }
   .v3 .row3.axis3 { grid-template-areas: "who track facts"; padding-top: 0; cursor: default; }
   .v3 .whobox { grid-area: who; min-width: 0; }
@@ -22,7 +22,7 @@ addStyle(`
   .v3 .ico:hover { border-color: var(--run); }
   .v3 .ico .dicon { width: 16px; height: 16px; }
   .v3 .ico .picon { width: 16px; height: 16px; }
-  @container (max-width: 640px) {
+  @container (max-width: 760px) {
     .v3 .row3 { grid-template-columns: 1fr auto; grid-template-areas: "who tools" "track track" "facts facts"; }
     .v3 .row3.axis3 { grid-template-areas: "track track"; }
   }
