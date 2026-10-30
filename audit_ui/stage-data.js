@@ -56,41 +56,8 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
-  // ---- Table tab -----------------------------------------------------------------------------------------------
-  async function mountTable(el, api, meta) {
-    await ensureAgGrid();
-    const box = h("div", { class: theme(), style: "flex:1;min-height:0" });
-    el.append(box);
-    const money = (p) => (p.value == null ? "" : p.value.toFixed(2));
-    const scen = Array.from({ length: meta.total_cols }, (_, i) => ({
-      headerName: `scenario ${i + 1}`, colId: `s${i + 1}`, width: 100, type: "rightAligned",
-      valueGetter: (p) => p.data?.values[i], valueFormatter: money,
-    }));
-    const grid = agGrid.createGrid(box, {
-      columnDefs: [
-        { headerName: "instrument", field: "key", pinned: "left", width: 150 },
-        { headerName: "status", valueGetter: (p) => p.data?.status, pinned: "left", width: 110 },
-        { headerName: "price", field: "price", valueFormatter: money, width: 90, type: "rightAligned" },
-        ...scen,
-      ],
-      defaultColDef: { sortable: false, resizable: true, suppressMovable: true },
-      rowModelType: "infinite", cacheBlockSize: 100, maxBlocksInCache: 8, infiniteInitialRowCount: 100,
-      datasource: {
-        async getRows(p) {
-          try {
-            const r = await fetch(api("matrix", { row_offset: p.startRow, row_limit: p.endRow - p.startRow, col_limit: 0 }));
-            if (!r.ok) throw new Error(r.status);
-            const d = await r.json();
-            p.successCallback(d.keys.map((k, i) => ({ key: k, status: d.outcomes[i]?.[0], price: d.price[i], values: d.values[i] })), d.total_rows);
-          } catch (e) { p.failCallback(); }
-        },
-      },
-    });
-    return () => grid.destroy();
-  }
-
   // ---- SQL tab -------------------------------------------------------------------------------------------------
-  async function mountSql(el, api, name) {
+  async function mountSql(el, api, name, xl) {
     const status = h("div", { class: "sd-note" }, "Loading DuckDB…");
     el.append(status);
     const duckdb = await import(`https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCK}/+esm`);
@@ -124,7 +91,7 @@
       const csv = h("button", { class: "sd-btn", disabled: true, title: "CSV opens directly in Excel" }, "⬇ Results (CSV)");
       status.replaceWith(
         h("div", { class: "sd-tools" }, h("span", { class: "sd-note" }, "examples:"), EXAMPLES.map(([t, q]) => h("button", { class: "sd-btn", onclick: () => ed.setValue(q) }, t))),
-        editorBox, h("div", { class: "sd-tools" }, run, csv, info), out);
+        editorBox, h("div", { class: "sd-tools" }, run, csv, xl, info), out);
 
       ed = monaco.editor.create(editorBox, {
         value: DEFAULT_SQL, language: "sql", theme: dark() ? "vs-dark" : "vs", minimap: { enabled: false }, automaticLayout: true,
@@ -185,32 +152,18 @@
     }
     const api = (path, p = {}) => `api/${path}?` + new URLSearchParams({ run, stage, ...p });
     const meta = h("span", { class: "sd-note" });
-    const tabs = h("div", { class: "sd-tabs", role: "tablist" });
-    const panes = {}, mounted = {};
-    const mounters = { table: (el, m) => mountTable(el, api, m), sql: (el) => mountSql(el, api, stage) };
-    let info = null;
-    const show = async (name) => {
-      for (const b of tabs.children) b.setAttribute("aria-selected", String(b.dataset.tab === name));
-      for (const [k, p] of Object.entries(panes)) p.hidden = k !== name;
-      if (!mounted[name] && info) { mounted[name] = true; try { cleanups.push(await mounters[name](panes[name], info)); } catch (e) { panes[name].innerHTML = `<div class="sd-err">${esc(e.message)}</div>`; } }
-    };
-    for (const [k, t] of [["table", "Table"], ["sql", "SQL"]]) {
-      tabs.append(h("button", { role: "tab", "data-tab": k, onclick: () => show(k) }, t));
-      panes[k] = h("div", { class: "sd-pane", hidden: true });
-    }
-    const xl = h("button", { class: "sd-btn", title: "Every instrument and every scenario", onclick: () => { location.href = api("xlsx"); } }, "⬇ Excel");
+    const pane = h("div", { class: "sd-pane" });
+    const xl = h("button", { class: "sd-btn", title: "Every instrument and every scenario, as .xlsx", onclick: () => { location.href = api("xlsx"); } }, "⬇ Excel (all)");
     dlg.innerHTML = "";
     dlg.append(
-      h("div", { class: "sd-head" }, h("h3", {}, h("code", {}, stage), " output"), meta, h("span", { style: "flex:1" }), xl,
+      h("div", { class: "sd-head" }, h("h3", {}, h("code", {}, stage), " output"), meta, h("span", { style: "flex:1" }),
         h("form", { method: "dialog" }, h("button", { "aria-label": "Close", class: "sd-x" }, "✕"))),
-      tabs, ...Object.values(panes));
+      pane);
     if (!dlg.open) dlg.showModal();
-    try {
-      const r = await fetch(api("matrix", { row_limit: 1, col_limit: 1 }));
-      if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
-      info = await r.json();
+    fetch(api("matrix", { row_limit: 1, col_limit: 1 })).then((r) => r.json()).then((info) => {
       meta.textContent = `${info.total_rows.toLocaleString()} instruments × ${info.total_cols.toLocaleString()} scenarios · run ${run.slice(0, 8)}`;
-      show("table");
-    } catch (e) { panes.table.hidden = false; panes.table.innerHTML = `<div class="sd-err">${esc(e.message)}</div>`; }
+    }).catch(() => {});
+    try { cleanups.push(await mountSql(pane, api, stage, xl)); }
+    catch (e) { pane.innerHTML = `<div class="sd-err">${esc(e.message)}</div>`; }
   };
 })();
