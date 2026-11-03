@@ -44,6 +44,14 @@ def check_url(url: str) -> None:
         raise ValueError(f"link url must start with http:// or https://, got {url!r}")
 
 
+def link(label: str, url: str) -> None:
+    """Attach a link to the current flow run's card: a Prefect link artifact (also listed in Prefect's own Artifacts tab)."""
+    from prefect.artifacts import create_link_artifact
+
+    check_url(url)
+    create_link_artifact(link=url, link_text=label)
+
+
 @dataclass(frozen=True)
 class JobSpec:
     """Everything a job declares about itself; the audit UI reads this instead of keeping its own config."""

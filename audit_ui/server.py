@@ -309,8 +309,10 @@ def run_links(run, info, fixed):
         except KeyError:
             continue
     seen = {}
-    for r in query("SELECT label, url FROM run_links WHERE flow_run_id = %s ORDER BY id", (run["id"],)):
-        seen[r["label"]] = r["url"]  # the latest link with a label wins
+    for a in prefect("/artifacts/filter", {"artifacts": {"flow_run_id": {"any_": [run["id"]]}}, "sort": "CREATED_DESC", "limit": 200})[::-1]:
+        m = re.fullmatch(r"\[(.*)\]\((https?://\S+)\)", (a.get("data") or "").strip()) if a.get("type") == "markdown" else None
+        if m:  # a link artifact (joule.link / prefect create_link_artifact) is markdown "[text](url)"
+            seen[m.group(1)] = m.group(2)  # the latest link with a label wins
     return out + [{"label": k, "url": v} for k, v in seen.items()]
 
 

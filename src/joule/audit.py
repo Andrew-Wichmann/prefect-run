@@ -41,14 +41,3 @@ def record_evicted(evicted: list[dict], flow_run_id: str | None = None) -> None:
     with psycopg.connect(url) as conn:
         conn.cursor().executemany(_INSERT, rows)
 
-
-def record_link(label: str, url: str) -> None:
-    """Append a link to the current flow run's card (see ``joule.link``). No-op if ``AUDIT_DATABASE_URL`` is unset."""
-    from joule.job import check_url
-
-    check_url(url)
-    audit_url = os.environ.get(AUDIT_URL_ENV)
-    if not audit_url:
-        return
-    with psycopg.connect(audit_url) as conn:
-        conn.execute("INSERT INTO run_links (flow_run_id, label, url) VALUES (%s, %s, %s)", (flow_run.id, label, url))

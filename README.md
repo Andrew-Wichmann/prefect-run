@@ -43,5 +43,4 @@ def margin(...):
 
 `links=` is fixed per job type; `{name}` placeholders are filled per run from the run's parameters and `cob`, `run_id`,
 `run_name`, `job` (a link whose placeholder has no value is hidden). `joule.link(label, url)` attaches a link to the
-current run, stored in the append-only `run_links` table (a later link with the same label replaces the earlier one on the card).
-Existing databases need the `run_links` block at the end of `audit/init.sql` applied once.
+current run: it is a Prefect link artifact (also in Prefect's Artifacts tab), and a later link with the same label replaces the earlier one on the card.

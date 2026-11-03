@@ -1,5 +1,4 @@
-from joule.audit import record_link as link
-from joule.job import JOBS, JobDefinitionError, JobSpec, Link, Sla, job
+from joule.job import JOBS, JobDefinitionError, JobSpec, Link, Sla, job, link
 from joule.stage import PRIMARY_KEY, StageContractError, stage
 from joule.status import Outcome, Status
 
