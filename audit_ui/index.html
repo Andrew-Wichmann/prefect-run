@@ -231,6 +231,7 @@ async function loadDetail() {
     ["Duration SLA", `within ${j.duration_sla.max_seconds} s ${sla(j.duration_sla_met)}`],
     ["Status", pill(j.status, j.status_type)],
     ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
+    ...(j.links.length ? [["Links", j.links.filter((l) => /^https?:\/\//.test(l.url)).map((l) => `<a class="xlink" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)} ↗</a>`).join(" · ")]] : []),
   ];
   setHTML($("rerun"), (j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "") + `<a class="ico" href="${esc(j.url)}" title="Open this run in Prefect" aria-label="Open in Prefect">${PREFECT_ICON}</a>`);
   stageNames = j.stages;

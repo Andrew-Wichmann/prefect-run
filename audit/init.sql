@@ -46,3 +46,16 @@ $$;
 CREATE TRIGGER stage_audit_notify
     AFTER INSERT ON stage_audit
     FOR EACH STATEMENT EXECUTE FUNCTION stage_audit_notify();
+
+-- Links a run attaches to its card while it runs (a trace, a request, a dashboard for this run's result). Append-only too.
+CREATE TABLE run_links (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    flow_run_id uuid NOT NULL,
+    label       text NOT NULL,
+    url         text NOT NULL CHECK (url ~ '^https?://')
+);
+CREATE INDEX run_links_run_idx ON run_links (flow_run_id, id);
+CREATE TRIGGER run_links_no_change BEFORE UPDATE OR DELETE ON run_links FOR EACH ROW EXECUTE FUNCTION stage_audit_immutable();
+CREATE TRIGGER run_links_no_truncate BEFORE TRUNCATE ON run_links FOR EACH STATEMENT EXECUTE FUNCTION stage_audit_immutable();
+CREATE TRIGGER run_links_notify AFTER INSERT ON run_links FOR EACH STATEMENT EXECUTE FUNCTION stage_audit_notify();

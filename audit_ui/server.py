@@ -20,7 +20,7 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import psycopg
 import pyarrow as pa
@@ -51,6 +51,7 @@ JOBS = {
         "duration_sla": {"max_seconds": spec.duration_sla},
         "iceberg_table": spec.iceberg_table,
         "retention_seconds": spec.retention.total_seconds(),  # how long the job keeps its stage results
+        "links": [asdict(link) for link in spec.links],  # fixed links, templated per run in run_links()
     }
     for name, spec in REGISTRY.items()
     if spec.sla and spec.duration_sla
@@ -294,6 +295,25 @@ def stage_counts(run_id):
     return counts
 
 
+def run_links(run, info, fixed):
+    """The links for a run's card: the job's fixed links (placeholders filled from this run) then those the run attached."""
+    values = {**(run.get("parameters") or {}), "cob": info["cob"], "run_id": run["id"], "run_name": run["name"], "job": info["job"]}
+
+    def fill(m):
+        return quote(str(values[m.group(1)]), safe="")  # KeyError: this run lacks a value the url needs
+
+    out = []
+    for link in fixed:
+        try:
+            out.append({"label": link["label"], "url": re.sub(r"\{(\w+)\}", fill, link["url"])})
+        except KeyError:
+            continue
+    seen = {}
+    for r in query("SELECT label, url FROM run_links WHERE flow_run_id = %s ORDER BY id", (run["id"],)):
+        seen[r["label"]] = r["url"]  # the latest link with a label wins
+    return out + [{"label": k, "url": v} for k, v in seen.items()]
+
+
 def job_detail(run_id):
     run = prefect(f"/flow_runs/{run_id}")
     flow = prefect(f"/flows/{run['flow_id']}")
@@ -302,7 +322,8 @@ def job_detail(run_id):
         raise KeyError(name)
     return {
         **JOBS[name],
-        **run_info(run, name),
+        **(info := run_info(run, name)),
+        "links": run_links(run, info, JOBS[name]["links"]),
         "name": name,
         "stages": job_stages(name),
         "stage_times": stage_times(run_id),

@@ -27,6 +27,24 @@ class Sla:
 
 
 @dataclass(frozen=True)
+class Link:
+    """A link shown on the job card. ``url`` may use ``{name}`` placeholders, filled per run from the run's parameters
+    and from ``cob``, ``run_id``, ``run_name`` and ``job`` (values are URL-escaped; a link with an unknown name is hidden)."""
+
+    label: str
+    url: str
+
+    def __post_init__(self) -> None:
+        check_url(self.url)
+
+
+def check_url(url: str) -> None:
+    """Links open from the dashboard, so only http(s) is allowed (never ``javascript:`` and the like)."""
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"link url must start with http:// or https://, got {url!r}")
+
+
+@dataclass(frozen=True)
 class JobSpec:
     """Everything a job declares about itself; the audit UI reads this instead of keeping its own config."""
 
@@ -35,6 +53,7 @@ class JobSpec:
     sla: Sla | None = None
     duration_sla: float | None = None  # seconds the run may take
     iceberg_table: str | None = None
+    links: list[Link] = field(default_factory=list)
 
 
 JOBS: dict[str, JobSpec] = {}
@@ -48,6 +67,7 @@ def job(
     sla: Sla | None = None,
     duration_sla: float | None = None,
     iceberg_table: str | None = None,
+    links: Sequence[Link] = (),
     **flow_kwargs: Any,
 ) -> Callable[[Callable[P, R]], Flow[P, R]]:
     """Wrap a function as a Prefect flow.
@@ -58,7 +78,7 @@ def job(
     ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
     ``stages`` is mandatory and non-empty: it declares, in order, the stages the job runs, and
     the run fails if it executes anything else. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``sla`` (delivery deadline), ``duration_sla`` (seconds the
-    run may take) and ``iceberg_table`` describe the job; all are registered in ``JOBS``
+    run may take), ``iceberg_table`` and ``links`` (fixed links for the job card, e.g. a margin dashboard) describe the job; all are registered in ``JOBS``
     under the flow's name, which is where the audit UI reads them.
 
     A job also takes a ``bust_cache_from`` parameter: the name of a
@@ -70,7 +90,7 @@ def job(
 
     def decorate(f: Callable[P, R], /) -> Flow[P, R]:
         wrapped = flow(**flow_kwargs)(_with_cache_busting(f, order))
-        JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table)
+        JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table, list(links))
         return wrapped
 
     return decorate
