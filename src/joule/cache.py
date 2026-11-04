@@ -6,12 +6,14 @@ in the job recompute (and refresh what is cached), even if their inputs are unch
 
 import contextlib
 import contextvars
+import fcntl
 import inspect
 import json
 import os
 import sysconfig
 import time
 import types
+import uuid
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
@@ -122,6 +124,15 @@ def storage_root() -> Path:
     return Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH") or Path.home() / ".prefect" / "storage")
 
 
+@contextlib.contextmanager
+def _locked(root: Path) -> Iterator[None]:
+    """Serialise marker changes between processes (a run extending an entry, the cleanup deleting it)."""
+    (root / "_expiry").mkdir(parents=True, exist_ok=True)
+    with open(root / "_expiry" / ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
 def keep_until(cache_key: str, storage_key: str, job: str, stage: str, retention: timedelta) -> None:
     """Record that this cache entry must be kept for ``retention`` from now, and never for less than it already was.
 
@@ -129,16 +140,16 @@ def keep_until(cache_key: str, storage_key: str, job: str, stage: str, retention
     If a bust replaced the entry's result file, the superseded file is deleted."""
     root = storage_root()
     marker = root / "_expiry" / Path(cache_key).name
-    expires_at = time.time() + retention.total_seconds()
-    old = _read_marker(marker)
-    if old:
-        expires_at = max(expires_at, old["expires_at"])
-        if old["storage_key"] != storage_key:
-            (root / Path(old["storage_key"]).name).unlink(missing_ok=True)
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    tmp = marker.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"job": job, "stage": stage, "storage_key": storage_key, "expires_at": expires_at}))
-    tmp.replace(marker)  # atomic, so the cleanup never reads half a marker
+    with _locked(root):
+        expires_at = time.time() + retention.total_seconds()
+        old = _read_marker(marker)
+        if old:
+            expires_at = max(expires_at, old["expires_at"])
+            if old["storage_key"] != storage_key:
+                (root / Path(old["storage_key"]).name).unlink(missing_ok=True)
+        tmp = marker.with_name(f"{marker.name}.{uuid.uuid4().hex}.tmp")
+        tmp.write_text(json.dumps({"job": job, "stage": stage, "storage_key": storage_key, "expires_at": expires_at}))
+        tmp.replace(marker)  # atomic, so the cleanup never reads half a marker
 
 
 def _read_marker(marker: Path) -> dict[str, Any] | None:
@@ -148,19 +159,36 @@ def _read_marker(marker: Path) -> dict[str, Any] | None:
         return None
 
 
-def evict_expired(now: float | None = None) -> list[dict[str, Any]]:
-    """Delete every cache entry whose retention has run out (result file, Prefect record and marker); returns what was deleted."""
+def _expired(root: Path, now: float) -> list[dict[str, Any]]:
+    out = []
+    for marker in sorted((root / "_expiry").glob("*")):
+        info = None if marker.suffix == ".tmp" or marker.name == ".lock" else _read_marker(marker)
+        if info and info["expires_at"] <= now:
+            out.append({**info, "cache_key": marker.name})
+    return out
+
+
+def evict_expired(now: float | None = None, before_delete: Callable[[list[dict[str, Any]]], None] | None = None) -> list[dict[str, Any]]:
+    """Delete every cache entry whose retention has run out (result file, Prefect record and marker); returns what was deleted.
+
+    ``before_delete`` gets the entries about to go and runs first, so a record of the deletion (the audit row)
+    exists before the data does: if it raises, nothing is deleted. Each entry is re-checked under the lock
+    before it goes, so a run that extended or replaced it in the meantime keeps it."""
     now = time.time() if now is None else now
     root = storage_root()
-    evicted = []
-    for marker in sorted((root / "_expiry").glob("*")):
-        info = _read_marker(marker)
-        if not info or info["expires_at"] > now:
-            continue
-        (root / Path(info["storage_key"]).name).unlink(missing_ok=True)
-        (root / "_meta" / marker.name).unlink(missing_ok=True)
-        marker.unlink(missing_ok=True)
-        evicted.append({**info, "cache_key": marker.name})
+    with _locked(root):
+        candidates = _expired(root, now)
+        if before_delete and candidates:
+            before_delete(candidates)
+        evicted = []
+        for e in candidates:
+            marker = root / "_expiry" / e["cache_key"]
+            if _read_marker(marker) != {k: e[k] for k in ("job", "stage", "storage_key", "expires_at")}:
+                continue
+            (root / Path(e["storage_key"]).name).unlink(missing_ok=True)
+            (root / "_meta" / e["cache_key"]).unlink(missing_ok=True)
+            marker.unlink(missing_ok=True)
+            evicted.append(e)
     return evicted
 
 

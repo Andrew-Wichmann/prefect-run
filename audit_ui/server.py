@@ -23,7 +23,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
 import psycopg
-import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from psycopg.rows import dict_row
@@ -32,7 +31,6 @@ DSN = os.environ["AUDIT_DATABASE_URL"]
 PREFECT = os.environ.get("PREFECT_API_URL", "http://prefect-server:4200/api")
 HERE = Path(__file__).parent
 CACHE = Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH", "/opt/cache"))
-SNAPSHOT_ROWS = 200  # most rows returned per request
 PAGES = {"/": "index.html"}
 ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascript; charset=utf-8" for n in
           ["live", "tz", "stage-common", "layouts", "stage-data"]}}
@@ -189,6 +187,15 @@ SCAN_BATCH = 200  # Prefect's page-size cap
 
 def jobs_history(page, f):
     """Job-history page. Job and status filter in Prefect; the derived columns filter here."""
+    if f.get("status") and f["status"] not in RUN_STATES:
+        raise ValueError("unknown status")
+    if f.get("cob"):
+        datetime.strptime(f["cob"], "%Y-%m-%d")  # ValueError -> 400
+    for k in ("sla", "dsla"):
+        if f.get(k) and f[k] not in ("met", "missed", "pending"):
+            raise ValueError(f"unknown {k}")
+    if f.get("min_minutes"):
+        float(f["min_minutes"])
     flows = {x["id"]: x["name"] for x in prefect("/flows/filter", {"flows": {"name": {"any_": list(JOBS)}}})}
     names = [n for n in [f.get("job")] if n in JOBS] or None
     ids = [i for i, n in flows.items() if names is None or n in names]
@@ -385,31 +392,6 @@ def snapshot_list(run_id, stage):
     return {"snapshots": out}
 
 
-def snapshot_rows(run_id, stage, task_run_id, offset):
-    """One page of a stage output's rows, with its schema."""
-    pf = pq.ParquetFile(_cache_file(prefect(f"/task_runs/{uuid.UUID(task_run_id)}")))  # FileNotFoundError -> 404 below
-    offset = max(offset, 0)
-    rows, seen = [], 0
-    for batch in pf.iter_batches(batch_size=SNAPSHOT_ROWS):
-        if seen + batch.num_rows > offset and len(rows) < SNAPSHOT_ROWS:
-            rows += batch.to_pylist()[max(offset - seen, 0):][: SNAPSHOT_ROWS - len(rows)]
-        seen += batch.num_rows
-        if len(rows) >= SNAPSHOT_ROWS:
-            break
-    # Each row's status is not a column: ParquetSerializer keeps the outcomes in the file's metadata, keyed by primary key.
-    meta = (pf.schema_arrow.metadata or {}).get(b"joule.outcomes")
-    outcomes = {}
-    if meta:
-        o = json.loads(meta)
-        outcomes = {str(k): {"status": s, "detail": d} for k, s, d in zip(o["key"], o["status"], o["detail"])}
-    for row in rows:
-        row["__outcome"] = outcomes.get(str(row.get("primary_key")))
-    return {
-        "columns": [{"name": c.name, "type": str(c.type)} for c in pf.schema_arrow],
-        "total": pf.metadata.num_rows, "offset": offset, "rows": rows, "has_outcomes": bool(outcomes),
-    }
-
-
 # --- Stage-output viewer: the wide stress tables (one row per instrument, 700 pricing_scenario_N columns), paged. -----------------
 
 SCENARIO = "pricing_scenario_"
@@ -470,49 +452,6 @@ def matrix_chunks(path, row_offset, row_limit, col_offset, col_limit, key=None):
             yield ((b"" if first else b",") + body.encode())
             first = False
     yield b"]}"
-
-
-@lru_cache(maxsize=2)
-def _stats(path, mtime):
-    """Per-instrument summary of its 700 scenario prices, plus status; chunked so the whole table never becomes Python lists."""
-    t = load(path)
-    scen = [c for c in t.column_names if c.startswith(SCENARIO)]
-    out = _outcomes(path)
-    keys, price = t["primary_key"].to_pylist(), t["price"].to_pylist()
-    rows = []
-    for i in range(0, t.num_rows, 500):
-        lists = [t[c].slice(i, 500).to_pylist() for c in scen]
-        for j, vals in enumerate(zip(*lists)):
-            n, v = len(vals), sorted(vals)
-            mean = sum(vals) / n
-            std = (sum((x - mean) ** 2 for x in vals) / n) ** 0.5
-            k, p = keys[i + j], price[i + j]
-            rows.append({"key": k, "status": (out.get(k) or [None])[0], "price": p, "min": v[0], "p5": v[int(.05 * (n - 1))],
-                         "p50": v[(n - 1) // 2], "p95": v[int(.95 * (n - 1))], "max": v[-1], "mean": mean, "std": std,
-                         "worst_pct": (v[0] / p - 1) if p else None, "best_pct": (v[-1] / p - 1) if p else None})
-    return rows
-
-
-def stats_page(path, sort, desc, offset, limit, q):
-    rows = _stats(str(path), Path(path).stat().st_mtime_ns)
-    if q:
-        rows = [r for r in rows if q.lower() in r["key"].lower()]
-    if sort in ("key", "status", "price", "min", "p5", "p50", "p95", "max", "mean", "std", "worst_pct", "best_pct"):
-        rows = sorted(rows, key=lambda r: (r[sort] is None, r[sort]), reverse=desc)
-    return {"total": len(rows), "offset": offset, "rows": rows[offset: offset + limit]}
-
-
-@lru_cache(maxsize=2)
-def _scenarios(path, mtime):
-    """Each scenario's move across the instruments: mean, worst and best percentage change against the instrument's price."""
-    t = load(path)
-    price = t["price"]
-    out = []
-    for c in (c for c in t.column_names if c.startswith(SCENARIO)):
-        pct = pc.subtract(pc.divide(t[c], price), 1.0)
-        mm = pc.min_max(pct).as_py()
-        out.append({"n": int(c[len(SCENARIO):]), "mean": pc.mean(pct).as_py(), "min": mm["min"], "max": mm["max"]})
-    return out
 
 
 def write_xlsx(path, dest, row_offset, row_limit, col_offset, col_limit):
@@ -599,11 +538,7 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == "/api/stage":
                 data = stage_history(qs["run"][0], qs["stage"][0], int(qs.get("offset", ["0"])[0]), int(qs.get("limit", ["100"])[0]),
                                      {k: qs[k][0] for k in ("key", "status", "detail", "at") if k in qs}, qs.get("sort", ["key"])[0], qs.get("dir", ["asc"])[0])
-            elif url.path == "/api/snapshots":
-                data = snapshot_list(qs["run"][0], qs["stage"][0])
-            elif url.path == "/api/snapshot":
-                data = snapshot_rows(qs["run"][0], qs["stage"][0], qs["task_run"][0], int(qs.get("offset", ["0"])[0]))
-            elif url.path in ("/api/matrix", "/api/stats", "/api/scenarios", "/api/parquet", "/api/outcomes", "/api/xlsx"):
+            elif url.path in ("/api/matrix", "/api/parquet", "/api/xlsx"):
                 q = {k: v[0] for k, v in qs.items()}
                 f = stage_file(q["run"], q["stage"], q.get("task_run"))
                 num = lambda k, d=0: max(int(q.get(k, d)), 0)  # noqa: E731
@@ -631,12 +566,6 @@ class Handler(BaseHTTPRequestHandler):
                         while chunk := fh.read(1 << 20):
                             self.wfile.write(chunk)
                     return
-                if url.path == "/api/outcomes":
-                    data = [{"primary_key": k, "status": v[0], "detail": v[1]} for k, v in _outcomes(f).items()]
-                elif url.path == "/api/scenarios":
-                    data = {"scenarios": _scenarios(str(f), f.stat().st_mtime_ns)}
-                else:
-                    data = stats_page(f, q.get("sort", "key"), q.get("dir") == "desc", num("offset"), min(num("limit", 50), 500), q.get("q", ""))
             elif url.path == "/api/instrument":
                 data = instrument_history(qs["run"][0], qs["key"][0])
             else:
