@@ -1,7 +1,4 @@
-import os
-
-from joule import Link, job, link
-from prefect.runtime import flow_run
+from joule import Link, job
 from stages.calibration import calibration
 from stages.common import DELIVERY_SLA, DURATION_SLA_S, RETENTION, read_raw
 from stages.dq import dq
@@ -19,8 +16,6 @@ from stages.upload import upload
     links=[Link("Margin dashboard (example)", "https://grafana.example.com/d/margin?var-cob={cob}")],
 )
 def stress_mortgage_backed_security(path: str):
-    # attached while the run executes; a real job would build this from its trace id
-    link("Prefect run", f"{os.environ.get('PREFECT_UI_URL', 'http://localhost:8080/prefect')}/runs/flow-run/{flow_run.id}")
     table = read_raw(path)
     table = init(table)
     table = dq(table)
