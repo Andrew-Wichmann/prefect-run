@@ -11,7 +11,7 @@ JOBS = [
     "stress_to_be_announced",
 ]
 
-MAINTENANCE = ["cleanup_cache"]  # not jobs: no stages, SLAs or dashboard page
+MAINTENANCE = ["cleanup_cache"]  # not jobs: no stages or dashboard page
 
 if __name__ == "__main__":
     for name in [*JOBS, *MAINTENANCE]:

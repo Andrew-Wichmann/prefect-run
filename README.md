@@ -31,22 +31,6 @@ Set `AUDIT_DATABASE_URL` to a Postgres with the table from `examples/dashboard/i
 
 AWS: see `examples/deploy/aws/README.md`.
 
-## Links on the job card
-
-Two ways to put a link on a run's card in the audit dashboard (http/https only):
-
-```python
-from joule import Link, job, link
-
-@job(..., links=[Link("Margin dashboard", "https://grafana.example.com/d/margin?var-cob={cob}")])
-def margin(...):
-    link("Request trace", f"https://grafana.example.com/explore?trace={trace_id}")  # known only while running
-```
-
-`links=` is fixed per job type; `{name}` placeholders are filled per run from the run's parameters and `cob`, `run_id`,
-`run_name`, `job` (a link whose placeholder has no value is hidden). `joule.link(label, url)` attaches a link to the
-current run: it is a Prefect link artifact (also in Prefect's Artifacts tab), and a later link with the same label replaces the earlier one on the card.
-
 ## Neovim (LSP)
 
 LazyVim with pyright. `pyproject.toml` already points pyright at `.venv`, `src/` and `examples/`, so start from the

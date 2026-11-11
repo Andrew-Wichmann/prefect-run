@@ -15,12 +15,11 @@ import uuid
 import zipfile
 from functools import lru_cache
 from xml.sax.saxutils import escape
-from dataclasses import asdict
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import psycopg
 import pyarrow.compute as pc
@@ -30,6 +29,7 @@ from psycopg.rows import dict_row
 DSN = os.environ["AUDIT_DATABASE_URL"]
 PREFECT = os.environ.get("PREFECT_API_URL", "http://prefect-server:4200/api")
 HERE = Path(__file__).parent
+COB_TZ = ZoneInfo("America/New_York")  # the close-of-business date of a run is its start date here
 CACHE = Path(os.environ.get("PREFECT_LOCAL_STORAGE_PATH", "/opt/cache"))
 PAGES = {"/": "index.html"}
 ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascript; charset=utf-8" for n in
@@ -42,17 +42,13 @@ from joule.job import JOBS as REGISTRY  # noqa: E402
 for module in deploy.JOBS:
     importlib.import_module(module)  # importing a job module registers it
 
-# What the page needs about each job that has delivery and duration SLAs, straight from its @job declaration.
+# What the page needs about each job, straight from its @job declaration.
 JOBS = {
     name: {
-        "sla": asdict(spec.sla),
-        "duration_sla": {"max_seconds": spec.duration_sla},
         "iceberg_table": spec.iceberg_table,
         "retention_seconds": spec.retention.total_seconds(),  # how long the job keeps its stage results
-        "links": [asdict(link) for link in spec.links],  # fixed links, templated per run in run_links()
     }
     for name, spec in REGISTRY.items()
-    if spec.sla and spec.duration_sla
 }
 
 
@@ -140,28 +136,13 @@ PAGE_SIZE = 10
 
 
 def run_info(run, job):
-    """One flow run as a job-history row; SLA is judged against the COB date in the SLA's timezone."""
-    sla = JOBS[job]["sla"]
-    tz = ZoneInfo(sla["tz"])
+    """One flow run as a job-history row; its COB date is the start date in COB_TZ."""
     start = datetime.fromisoformat(run["start_time"]) if run["start_time"] else None
     end = datetime.fromisoformat(run["end_time"]) if run["end_time"] else None
     status = run["state"]["name"]
-    cob = start.astimezone(tz).date() if start else None
-    # Delivery SLA: due at `time` on COB + day_offset (T+1 = the day after the COB date), in the SLA's timezone.
-    deadline = None
-    sla_met = None
-    if cob:
-        hour, minute = map(int, sla["time"].split(":"))
-        deadline = datetime.combine(cob + timedelta(days=sla.get("day_offset", 0)), time(hour, minute), tz)
-        if end and status == "Completed":
-            sla_met = end <= deadline
-        elif datetime.now(timezone.utc) > deadline:
-            sla_met = False  # still not delivered after the deadline
+    cob = start.astimezone(COB_TZ).date() if start else None
     finish = end or datetime.now(timezone.utc)
     duration_s = (finish - start).total_seconds() if start else None
-    # Duration SLA: how long the run may take. Breached as soon as it runs over, even while in flight.
-    limit = JOBS[job]["duration_sla"]["max_seconds"]
-    duration_sla_met = None if duration_s is None else False if duration_s > limit else True if status == "Completed" else None
     return {
         "run_id": run["id"],
         "run_name": run["name"],
@@ -172,9 +153,6 @@ def run_info(run, job):
         "start_time": run["start_time"],
         "end_time": run["end_time"],
         "duration_s": duration_s,
-        "sla_met": sla_met,
-        "sla_deadline": deadline.isoformat() if deadline else None,
-        "duration_sla_met": duration_sla_met,
         "url": f"/prefect/runs/flow-run/{run['id']}",
         "deployment_id": run.get("deployment_id"),
         "parameters": run.get("parameters") or {},
@@ -191,9 +169,6 @@ def jobs_history(page, f):
         raise ValueError("unknown status")
     if f.get("cob"):
         datetime.strptime(f["cob"], "%Y-%m-%d")  # ValueError -> 400
-    for k in ("sla", "dsla"):
-        if f.get(k) and f[k] not in ("met", "missed", "pending"):
-            raise ValueError(f"unknown {k}")
     if f.get("min_minutes"):
         float(f["min_minutes"])
     flows = {x["id"]: x["name"] for x in prefect("/flows/filter", {"flows": {"name": {"any_": list(JOBS)}}})}
@@ -213,15 +188,11 @@ def jobs_history(page, f):
             break
 
     rows = [run_info(r, flows[r["flow_id"]]) for r in runs]
-    sla_filter = {"met": True, "missed": False, "pending": None}.get(f.get("sla"), "any")
-    dsla_filter = {"met": True, "missed": False, "pending": None}.get(f.get("dsla"), "any")
     min_s = float(f["min_minutes"]) * 60 if f.get("min_minutes") else None
     rows = [
         r
         for r in rows
         if (not f.get("cob") or r["cob"] == f["cob"])
-        and (sla_filter == "any" or r["sla_met"] is sla_filter)
-        and (dsla_filter == "any" or r["duration_sla_met"] is dsla_filter)
         and (min_s is None or (r["duration_s"] or 0) >= min_s)
     ]
     return {
@@ -302,27 +273,6 @@ def stage_counts(run_id):
     return counts
 
 
-def run_links(run, info, fixed):
-    """The links for a run's card: the job's fixed links (placeholders filled from this run) then those the run attached."""
-    values = {**(run.get("parameters") or {}), "cob": info["cob"], "run_id": run["id"], "run_name": run["name"], "job": info["job"]}
-
-    def fill(m):
-        return quote(str(values[m.group(1)]), safe="")  # KeyError: this run lacks a value the url needs
-
-    out = []
-    for link in fixed:
-        try:
-            out.append({"label": link["label"], "url": re.sub(r"\{(\w+)\}", fill, link["url"])})
-        except KeyError:
-            continue
-    seen = {}
-    for a in prefect("/artifacts/filter", {"artifacts": {"flow_run_id": {"any_": [run["id"]]}}, "sort": "CREATED_DESC", "limit": 200})[::-1]:
-        m = re.fullmatch(r"\[(.*)\]\((https?://\S+)\)", (a.get("data") or "").strip()) if a.get("type") == "markdown" else None
-        if m:  # a link artifact (joule.link / prefect create_link_artifact) is markdown "[text](url)"
-            seen[m.group(1)] = m.group(2)  # the latest link with a label wins
-    return out + [{"label": k, "url": v} for k, v in seen.items()]
-
-
 def job_detail(run_id):
     run = prefect(f"/flow_runs/{run_id}")
     flow = prefect(f"/flows/{run['flow_id']}")
@@ -331,8 +281,7 @@ def job_detail(run_id):
         raise KeyError(name)
     return {
         **JOBS[name],
-        **(info := run_info(run, name)),
-        "links": run_links(run, info, JOBS[name]["links"]),
+        **run_info(run, name),
         "name": name,
         "stages": job_stages(name),
         "stage_times": stage_times(run_id),

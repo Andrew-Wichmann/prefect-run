@@ -15,8 +15,6 @@ function parts(t, z, withDate, withSeconds) {
 }
 // e.g. "23:19:50 EDT"; the date is included only when asked for.
 const fmtTime = (t, { seconds = true, date = false } = {}) => t ? parts(t, zone, date, seconds) : "–";
-// A wall-clock time (HH:MM) in a named zone, e.g. an SLA, shown as that zone's own clock.
-const fmtZoned = (hhmm, tz) => `${hhmm} ${new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(new Date()).find((x) => x.type === "timeZoneName")?.value}`;
 
 function zonePicker(onChange) {
   const sel = document.createElement("select");

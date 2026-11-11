@@ -55,9 +55,6 @@ function stageGeometry(j) {
   const pct = (ms) => `${(100 * (ms - t0) / span).toFixed(2)}%`;
   const w = (ms) => `${Math.min(100, 100 * ms / span).toFixed(2)}%`;
   const base = Math.max(...S.map((n) => totalOf(j.stage_counts[n])));  // the most instruments any stage saw
-  // Where the job's duration SLA falls on the run's clock (the run's first start + the allowed seconds).
-  const lim = t0 + j.duration_sla.max_seconds * 1000;
-  const limit = lim <= t1 ? `<div class="limit" style="left:${pct(lim)}" title="Duration SLA: ${j.duration_sla.max_seconds} s"></div>` : "";
   return {
     j, S, T, B, base,
     axis: () => `<div class="axisl"><span>${fmtTime(t0)}</span><span>${secs(runSpan / 1000)} total</span><span>${fmtTime(t1)}</span></div>`,
@@ -66,7 +63,7 @@ function stageGeometry(j) {
       const s = t?.start_time ? +new Date(t.start_time) : null, e = t?.start_time ? +new Date(t.end_time || now) : null;
       const ghost = b ? `<div class="ghost" style="left:${pct(t0 + (b.start_s - h0) * 1000)};width:${w(b.duration_s * 1000)}"></div>` : "";
       const bar = s == null ? "" : `<div class="bar" style="left:${pct(s)};width:${w(e - s)}" title="${secs((e - s) / 1000)}"></div>`;
-      return `<div class="track">${ghost}${bar}${limit}</div>`;
+      return `<div class="track">${ghost}${bar}</div>`;
     },
     mix: (n) => statusMix(j.stage_counts[n], base),
     took: (n) => T[n]?.end_time ? secs(T[n].duration_s) : T[n] ? "running…" : "–",

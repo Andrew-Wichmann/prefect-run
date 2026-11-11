@@ -74,7 +74,6 @@
   .axisl { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
   .track { position: relative; height: 26px; background: color-mix(in srgb, var(--muted) 10%, transparent); border-radius: 6px; }
   .bar { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 45%, transparent); min-width: 3px; }
-  .limit { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--failed); opacity: .7; border-radius: 1px; }
   .ghost { position: absolute; top: 0; bottom: 0; border: 1px dashed var(--muted); border-radius: 4px; min-width: 3px; }
   .grow .mix { margin: 0 0 2px; }
   .grow > div:first-child { min-width: 0; overflow-wrap: anywhere; }

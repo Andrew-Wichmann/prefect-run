@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from joule import PRIMARY_KEY, Outcome, Sla, Status
+from joule import PRIMARY_KEY, Outcome, Status
 
 # Schemas chain: each stage's out_schema is the next stage's in_schema.
 RAW = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])
@@ -19,11 +19,7 @@ STRESSED = pa.schema([*CALIBRATED, *(pa.field(name, pa.float64()) for name in SC
 _SHOCKS = (lambda r: [r.gauss(0.0, 0.08) for _ in range(SCENARIOS)])(random.Random(2026))  # one market move per scenario, the same in every job
 
 
-DELIVERY_SLA = Sla(time="07:00", tz="America/New_York", day_offset=1)
-"""Pricing lands by 07:00 New York time the morning after the close-of-business date (T+1)."""
-DURATION_SLA_S = 30
 RETENTION = timedelta(days=30)  # how long the pricing jobs keep their stage results
-"""Seconds a pricing run may take."""
 
 FAIL_RATE = 0.015
 """Fraction of rows each stub stage randomly fails, to give runs some bad data."""

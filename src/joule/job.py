@@ -18,50 +18,12 @@ class JobDefinitionError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class Sla:
-    """A delivery deadline: ``time`` (HH:MM) in ``tz`` on the close-of-business date plus ``day_offset`` days (T+1 is 1)."""
-
-    time: str
-    tz: str
-    day_offset: int = 0
-
-
-@dataclass(frozen=True)
-class Link:
-    """A link shown on the job card. ``url`` may use ``{name}`` placeholders, filled per run from the run's parameters
-    and from ``cob``, ``run_id``, ``run_name`` and ``job`` (values are URL-escaped; a link with an unknown name is hidden)."""
-
-    label: str
-    url: str
-
-    def __post_init__(self) -> None:
-        check_url(self.url)
-
-
-def check_url(url: str) -> None:
-    """Links open from the dashboard, so only http(s) is allowed (never ``javascript:`` and the like)."""
-    if not url.startswith(("http://", "https://")):
-        raise ValueError(f"link url must start with http:// or https://, got {url!r}")
-
-
-def link(label: str, url: str) -> None:
-    """Attach a link to the current flow run's card: a Prefect link artifact (also listed in Prefect's own Artifacts tab)."""
-    from prefect.artifacts import create_link_artifact
-
-    check_url(url)
-    create_link_artifact(link=url, link_text=label)
-
-
-@dataclass(frozen=True)
 class JobSpec:
     """Everything a job declares about itself; the audit UI reads this instead of keeping its own config."""
 
     retention: timedelta
     stages: list[str] = field(default_factory=list)
-    sla: Sla | None = None
-    duration_sla: float | None = None  # seconds the run may take
     iceberg_table: str | None = None
-    links: list[Link] = field(default_factory=list)
 
 
 JOBS: dict[str, JobSpec] = {}
@@ -72,10 +34,7 @@ def job(
     *,
     retention: timedelta,
     stages: Sequence[Task[..., Any]],
-    sla: Sla | None = None,
-    duration_sla: float | None = None,
     iceberg_table: str | None = None,
-    links: Sequence[Link] = (),
     **flow_kwargs: Any,
 ) -> Callable[[Callable[P, R]], Flow[P, R]]:
     """Wrap a function as a Prefect flow.
@@ -85,9 +44,8 @@ def job(
     after the last run that used them. Each use of an entry extends its expiry, and the daily
     ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
     ``stages`` is mandatory and non-empty: it declares, in order, the stages the job runs, and
-    the run fails if it executes anything else. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``sla`` (delivery deadline), ``duration_sla`` (seconds the
-    run may take), ``iceberg_table`` and ``links`` (fixed links for the job card, e.g. a margin dashboard) describe the job; all are registered in ``JOBS``
-    under the flow's name, which is where the audit UI reads them.
+    the run fails if it executes anything else. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``iceberg_table`` describes the job; it is registered in ``JOBS``
+    under the flow's name, which is where the audit UI reads it.
 
     A job also takes a ``bust_cache_from`` parameter: the name of a
     stage from which the cache is ignored, so that stage and all later ones rerun.
@@ -98,7 +56,7 @@ def job(
 
     def decorate(f: Callable[P, R], /) -> Flow[P, R]:
         wrapped = flow(**flow_kwargs)(_with_cache_busting(f, order))
-        JOBS[wrapped.name] = JobSpec(retention, order, sla, duration_sla, iceberg_table, list(links))
+        JOBS[wrapped.name] = JobSpec(retention, order, iceberg_table)
         return wrapped
 
     return decorate
