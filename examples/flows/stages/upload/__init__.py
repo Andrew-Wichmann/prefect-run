@@ -8,11 +8,11 @@ IN = stress.OUT
 OUT = IN
 
 
-REASONS = ["downstream rejected the record", "upload timed out"]
+MOCK_FAILURE_REASONS = ["downstream rejected the record", "upload timed out"]
 
 
 @stage(in_schema=IN, out_schema=OUT)
 def upload(table: pa.Table):
     """Publish stressed prices downstream (stub: nothing is sent anywhere yet)."""
     mock_work()
-    return with_failures(table, "uploaded", REASONS)
+    return with_failures(table, "uploaded", MOCK_FAILURE_REASONS)

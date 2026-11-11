@@ -7,7 +7,7 @@ from stages.stub import mock_work, with_failures
 IN = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])
 OUT = IN
 
-REASONS = ["duplicate instrument in source file", "row could not be parsed"]
+MOCK_FAILURE_REASONS = ["duplicate instrument in source file", "row could not be parsed"]
 
 
 def read_raw(path: str) -> pa.Table:
@@ -19,4 +19,4 @@ def read_raw(path: str) -> pa.Table:
 def init(table: pa.Table):
     """Register every row loaded for the job."""
     mock_work()
-    return with_failures(table, "init", REASONS)
+    return with_failures(table, "init", MOCK_FAILURE_REASONS)

@@ -9,7 +9,7 @@ from stages.stub import with_failures
 IN = dq.OUT  # swaps skip calibration
 OUT = stress.OUT  # but still produce the shape upload takes
 
-REASONS = ["no discount curve for swap currency", "swap fixing missing"]
+MOCK_FAILURE_REASONS = ["no discount curve for swap currency", "swap fixing missing"]
 
 
 @stage(in_schema=IN, out_schema=OUT)
@@ -21,4 +21,4 @@ def stress_interest_rate_swaps(table: pa.Table):
     """
     table = table.append_column("curve_shift", pa.array([0.0] * table.num_rows))
     table = add_scenarios(table, pc.subtract(100.0, table["price"]))
-    return with_failures(table, "stressed", REASONS)
+    return with_failures(table, "stressed", MOCK_FAILURE_REASONS)

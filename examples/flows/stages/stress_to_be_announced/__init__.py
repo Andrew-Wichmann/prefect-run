@@ -12,7 +12,7 @@ OUT = stress.OUT
 DROP = 0.25
 
 
-REASONS = ["no TBA coupon available", "settlement date outside TBA calendar"]
+MOCK_FAILURE_REASONS = ["no TBA coupon available", "settlement date outside TBA calendar"]
 
 
 @stage(in_schema=IN, out_schema=OUT)
@@ -21,4 +21,4 @@ def stress_to_be_announced(table: pa.Table):
     mock_work()
     curve_price = pc.multiply(table["price"], pc.add(1.0, table["curve_shift"]))
     table = add_scenarios(table, pc.subtract(curve_price, DROP))
-    return with_failures(table, "stressed", REASONS)
+    return with_failures(table, "stressed", MOCK_FAILURE_REASONS)

@@ -7,7 +7,7 @@ from stages.stub import mock_work, with_failures
 IN = init.OUT
 OUT = IN
 
-REASONS = [
+MOCK_FAILURE_REASONS = [
     "price is null",
     "price differs from previous close by more than 20%",
     "quote is stale (older than 15 minutes)",
@@ -21,4 +21,4 @@ REASONS = [
 def dq(table: pa.Table):
     """Data quality checks on the raw quotes; failing rows are dropped from the output."""
     mock_work()
-    return with_failures(table, "passed", REASONS)
+    return with_failures(table, "passed", MOCK_FAILURE_REASONS)

@@ -12,7 +12,7 @@ OUT = stress.OUT
 PREPAYMENT_HAIRCUT = 0.99
 
 
-REASONS = ["prepayment model failed", "pool factor missing"]
+MOCK_FAILURE_REASONS = ["prepayment model failed", "pool factor missing"]
 
 
 @stage(in_schema=IN, out_schema=OUT)
@@ -21,4 +21,4 @@ def stress_mortgage_backed_security(table: pa.Table):
     mock_work()
     curve_price = pc.multiply(table["price"], pc.add(1.0, table["curve_shift"]))
     table = add_scenarios(table, pc.multiply(curve_price, PREPAYMENT_HAIRCUT))
-    return with_failures(table, "stressed", REASONS)
+    return with_failures(table, "stressed", MOCK_FAILURE_REASONS)
