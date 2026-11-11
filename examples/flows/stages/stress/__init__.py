@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from joule import stage
+from joules import stage
 from stages import calibration
 from stages.stress.scenarios import SCENARIO_FIELDS, add_scenarios
 from stages.stub import mock_work, with_failures

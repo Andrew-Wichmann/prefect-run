@@ -1,6 +1,6 @@
 import pyarrow as pa
 
-from joule import stage
+from joules import stage
 from stages import init
 from stages.stub import mock_work, with_failures
 

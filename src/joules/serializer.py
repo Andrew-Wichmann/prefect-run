@@ -15,7 +15,7 @@ import pyarrow.parquet as pq
 from prefect.serializers import Serializer
 from pydantic import Field
 
-from joule.status import Detail, split_detail
+from joules.status import Detail, split_detail
 
 
 def _parquet(table: pa.Table) -> bytes:

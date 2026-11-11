@@ -1,8 +1,8 @@
 """The public API. Everything else (the job registry, cache, audit, serializer) is internal: import it from its module."""
 
-from joule.job import JobDefinitionError, job
-from joule.stage import PRIMARY_KEY, StageContractError, stage
-from joule.status import Detail
+from joules.job import JobDefinitionError, job
+from joules.stage import PRIMARY_KEY, StageContractError, stage
+from joules.status import Detail
 
 __all__ = [
     "job", "stage",  # the two decorators: a job is a flow, a stage is a task

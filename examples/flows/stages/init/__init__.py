@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from joule import PRIMARY_KEY, stage
+from joules import PRIMARY_KEY, stage
 from stages.stub import mock_work, with_failures
 
 IN = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])

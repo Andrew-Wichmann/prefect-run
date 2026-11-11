@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from joule import PRIMARY_KEY, Detail
+from joules import PRIMARY_KEY, Detail
 
 
 FAIL_RATE = 0.015

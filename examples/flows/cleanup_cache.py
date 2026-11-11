@@ -1,7 +1,7 @@
 from prefect import flow, get_run_logger
 from prefect.runtime import flow_run
 
-from joule import audit, cache
+from joules import audit, cache
 
 
 @flow(name="cleanup-cache")

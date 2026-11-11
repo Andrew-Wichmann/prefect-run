@@ -1,4 +1,4 @@
-from joule import job
+from joules import job
 from config import RETENTION
 from stages.dq import dq
 from stages.init import init, read_raw

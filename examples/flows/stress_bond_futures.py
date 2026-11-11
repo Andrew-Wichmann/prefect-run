@@ -1,4 +1,4 @@
-from joule import job
+from joules import job
 from stages.calibration import calibration
 from config import RETENTION
 from stages.dq import dq

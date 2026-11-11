@@ -37,7 +37,7 @@ ASSETS = {"/style.css": "text/css; charset=utf-8", **{f"/{n}.js": "text/javascri
 
 sys.path.append("/opt/flows")  # job modules live next to the worker's flows
 import deploy  # noqa: E402  (lists the job modules)
-from joule.job import JOBS as REGISTRY  # noqa: E402
+from joules.job import JOBS as REGISTRY  # noqa: E402
 
 for module in deploy.JOBS:
     importlib.import_module(module)  # importing a job module registers it

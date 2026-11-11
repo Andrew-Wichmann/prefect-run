@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional, ParamSpec, TypeVar
 
 from prefect import Flow, Task, flow
 
-from joule import cache, trace
+from joules import cache, trace
 
 P = ParamSpec("P")
 R = TypeVar("R")

@@ -5,7 +5,7 @@ from collections.abc import Mapping
 import psycopg
 from prefect.runtime import flow_run
 
-from joule.status import Detail, split_detail
+from joules.status import Detail, split_detail
 
 AUDIT_URL_ENV = "AUDIT_DATABASE_URL"
 

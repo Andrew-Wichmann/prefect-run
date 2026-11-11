@@ -6,10 +6,10 @@ from typing import Any, Concatenate, ParamSpec, cast
 import pyarrow as pa
 from prefect import Task
 
-from joule import audit, cache, trace
-from joule.job import JOBS
-from joule.serializer import ParquetSerializer
-from joule.status import Detail, valid_detail
+from joules import audit, cache, trace
+from joules.job import JOBS
+from joules.serializer import ParquetSerializer
+from joules.status import Detail, valid_detail
 
 
 PRIMARY_KEY = "primary_key"
@@ -131,7 +131,7 @@ def stage(
     log); callers of the stage only ever see the resulting table.
 
     Results are cached across runs on the stage's inputs and code (override with
-    ``cache_policy=``) and stored as Parquet, not pickle (see ``joule.serializer``); see ``joule.cache`` for busting the cache from a stage.
+    ``cache_policy=``) and stored as Parquet, not pickle (see ``joules.serializer``); see ``joules.cache`` for busting the cache from a stage.
 
     Usage: ``@stage(in_schema=IN, out_schema=OUT, retries=2)``.
     """
