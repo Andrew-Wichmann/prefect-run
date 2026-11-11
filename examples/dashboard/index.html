@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobs</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .table-wrap { overflow-x: auto; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: color-mix(in srgb, var(--muted) 12%, transparent); }
+  tr.row.selected td { background: color-mix(in srgb, var(--run) 16%, transparent); }
+  .pager { display: flex; align-items: center; gap: 12px; margin: 12px 0 28px; color: var(--muted); }
+  .pager button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px;
+    background: none; color: inherit; cursor: pointer; }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  button.snap, button.bust { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+  #stagedata { width: 96vw; height: 92vh; max-width: none; padding: 0; }
+  #stagedata[open] { display: flex; flex-direction: column; }
+  .sd-head { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex: none; }
+  .sd-head h3 { margin: 0; font-size: 16px; }
+  .sd-x { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; }
+  .sd-tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); flex: none; }
+  .sd-tabs button { font: inherit; font-size: 13px; padding: 8px 14px; background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .sd-tabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--run); }
+  .sd-pane { flex: 1; min-height: 0; padding: 10px 16px 14px; flex-direction: column; gap: 8px; }
+  .sd-pane:not([hidden]) { display: flex; }
+  .sd-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; flex: none; }
+  .sd-btn { font: inherit; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+  .sd-btn:hover:not(:disabled) { background: var(--sel); }
+  .sd-btn:disabled { opacity: .4; cursor: default; }
+  .sd-btn.primary { border-color: var(--run); color: var(--run); }
+  .sd-editor { height: 150px; flex: none; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .sd-note { color: var(--muted); font-size: 12px; }
+  .sd-err { color: var(--failed); font-size: 13px; padding: 12px; white-space: pre-wrap; }
+  dialog { min-width: min(480px, 92vw); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+    background: var(--bg); color: var(--fg); }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .dlg-head h3 { margin: 0; }
+  .dlg-head button { font: inherit; background: none; border: 0; color: var(--muted); cursor: pointer; }
+  .ok { color: var(--ok); } .bad { color: var(--failed); }
+  tr.filters th { padding: 4px 6px; font-weight: normal; }
+  tr.filters input, tr.filters select { width: 100%; min-width: 80px; box-sizing: border-box; font: inherit; padding: 3px 6px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .pillsel { position: relative; min-width: 110px; }
+  .pillsel .trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; font: inherit; padding: 2px 6px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; }
+  .pillsel .opts { position: fixed; z-index: 30; display: grid; gap: 2px; padding: 6px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / .28); }
+  .pillsel .opts[hidden] { display: none; }
+  .pillsel .opts button { display: flex; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .pillsel .opts button:hover, .pillsel .opts button:focus-visible { background: color-mix(in srgb, var(--run) 14%, transparent); outline: none; }
+  .pillsel .opts button[aria-selected=true] { background: var(--sel); }
+  .pillsel .caret, .pillsel .all { color: var(--muted); }
+  .pillsel .caret { font-size: 10px; }
+  .detail-card { position: relative; margin-top: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+  .detail-card .meta { padding: 0; border: 0; padding-right: 76px; }  /* leave room for the buttons in the corner */
+  .detail-act { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
+  /* same look as the stage rows' icon buttons (.v3 .ico in layouts.js) */
+  .detail-act .ico { width: 26px; height: 26px; padding: 0; margin: 0; display: inline-grid; place-items: center; border: 1px solid var(--line);
+    border-radius: 6px; background: none; color: inherit; font-size: 14px; line-height: 1; text-decoration: none; cursor: pointer; }
+  .detail-act .ico:hover { border-color: var(--run); }
+  .detail-act .picon { width: 16px; height: 16px; }
+  .stage-card { cursor: pointer; }
+  .stage-card:hover, .stage-card.selected { border-color: var(--run); }
+  .stage-card.selected { background: color-mix(in srgb, var(--run) 12%, transparent); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Jobs</h1>
+  <div id="topbar-controls" class="controls"></div>
+</header>
+<main>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>COB</th><th>Status</th><th>Start</th><th>End</th><th>Duration</th></tr>
+        <tr class="filters">
+          <th><select id="f-job" aria-label="Filter by job"></select></th>
+          <th><input id="f-cob" type="date" aria-label="Filter by COB"></th>
+          <th><div id="f-status"></div></th>
+          <th></th><th></th>
+          <th><input id="f-minutes" type="number" min="0" step="any" placeholder="≥ min" aria-label="Minimum duration in minutes"></th>
+        </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="pager">
+    <button id="prev">← Newer</button>
+    <span id="pageinfo"></span>
+    <button id="next">Older →</button>
+  </div>
+
+  <section id="detail" hidden>
+    <h2 class="job-title" id="name"></h2>
+    <div class="detail-card"><div id="rerun" class="detail-act"></div><dl class="meta" id="meta"></dl></div>
+    <h3 class="eyebrow" style="margin-top:24px">Stages</h3>
+    <div id="stages"></div>
+
+    <section id="stage-detail" hidden>
+      <div class="legend" id="legend"></div>
+      <div id="stage-grid" style="height:min(70vh,640px)"></div>
+    </section>
+  </section>
+</main>
+<dialog id="instrument">
+  <form method="dialog" class="dlg-head"><h3 id="inst-title"></h3><button aria-label="Close">✕</button></form>
+  <table>
+    <thead><tr><th>Stage</th><th>Status</th><th>Detail</th><th>Recorded</th></tr></thead>
+    <tbody id="inst-rows"></tbody>
+  </table>
+</dialog>
+<script src="live.js"></script>
+<script src="tz.js"></script>
+<script src="stage-common.js"></script>
+<script src="layouts.js"></script>
+<script src="stage-data.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Job and stage statuses are Prefect's state names; colour them by Prefect's state type.
+const STATE_CLASS = { COMPLETED: "s-done", RUNNING: "s-inflight", PENDING: "s-inflight", CANCELLING: "s-inflight", FAILED: "s-failed", CRASHED: "s-failed" };
+const pill = (s, type) => `<span class="pill ${STATE_CLASS[type] || "s-other"}">${esc(s)}</span>`;
+const clock = (t) => fmtTime(t, { seconds: false });
+const mins = (s, digits = 0) => s == null ? "–" : s < 60 ? `${s.toFixed(digits)} s` : `${(s / 60).toFixed(digits)} min`;
+
+
+// Live updates re-render in place: skip untouched content (keeps hover, focus and layout steady) and hold the scroll position.
+const lastHTML = new WeakMap();
+function setHTML(el, html) {
+  if (lastHTML.get(el) === html) return;
+  lastHTML.set(el, html);
+  const x = scrollX, y = scrollY;
+  el.innerHTML = html;
+  if (scrollX !== x || scrollY !== y) scrollTo(x, y);
+}
+
+let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null;
+// Statuses are whatever the stages return, so colours come from the name: "failed" is red, the rest take a stable colour from a palette.
+const PALETTE = ["--run", "--ok", "--warn", "--p1", "--p2", "--p3"];
+const statusColor = (s) => s === "failed" ? "var(--failed)" : `var(${PALETTE[[...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PALETTE.length]})`;
+const statusOrder = (a, b) => (b === "failed") - (a === "failed") || a.localeCompare(b);
+const badge = (s) => `<span class="cell"><span class="dot" style="background:${statusColor(s)}"></span>${esc(s)}</span>`;
+const when = (t) => fmtTime(t, { date: true });
+
+const jobFilters = { job: "f-job", cob: "f-cob", status: "f-status", min_minutes: "f-minutes" };
+const jobQuery = () => Object.entries(jobFilters)
+  .map(([k, id]) => [k, $(id).value.trim()]).filter(([, v]) => v)
+  .map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join("");
+// A select whose options are the status pills (a native <select> cannot style its options). It behaves like one to the
+// rest of the page: `.value` is the chosen status ("" for All), "input" fires when it changes, and `.fill(names)` sets the options.
+function pillSelect(el, label) {
+  let value = "";
+  el.classList.add("pillsel");
+  el.innerHTML = `<button type="button" class="trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(label)}"></button><div class="opts" role="listbox" hidden></div>`;
+  const [trigger, menu] = el.children;
+  const label_ = (v) => v ? pill(v, v.toUpperCase()) : `<span class="all">All</span>`;
+  const draw = () => {
+    trigger.innerHTML = `${label_(value)}<span class="caret" aria-hidden="true">▾</span>`;
+    for (const b of menu.children) b.setAttribute("aria-selected", b.dataset.v === value);
+  };
+  const close = (refocus) => { menu.hidden = true; trigger.setAttribute("aria-expanded", "false"); if (refocus) trigger.focus(); };
+  const choose = (v) => { const changed = v !== value; value = v; draw(); close(true); if (changed) el.dispatchEvent(new Event("input", { bubbles: true })); };
+  const open = () => {
+    const r = trigger.getBoundingClientRect();  // the menu is fixed-position so the table's scroll area cannot clip it
+    Object.assign(menu.style, { top: `${r.bottom + 4}px`, left: `${r.left}px`, minWidth: `${r.width}px` });
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    (menu.querySelector("[aria-selected=true]") || menu.firstElementChild)?.focus();
+  };
+  Object.defineProperty(el, "value", { get: () => value, set: (v) => { value = v; draw(); } });
+  el.fill = (names) => {
+    if (menu.children.length) return;
+    menu.innerHTML = ["", ...names].map((v) => `<button type="button" role="option" tabindex="-1" data-v="${esc(v)}">${label_(v)}</button>`).join("");
+    draw();
+  };
+  trigger.onclick = () => menu.hidden ? open() : close(true);
+  menu.onclick = (e) => { const b = e.target.closest("[role=option]"); if (b) choose(b.dataset.v); };
+  menu.onkeydown = (e) => {
+    const items = [...menu.children], i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); e.preventDefault(); }
+    else if (e.key === "Escape") close(true);
+    else if (e.key === "Tab") close(false);
+  };
+  document.addEventListener("click", (e) => { if (!el.contains(e.target)) close(false); });
+  addEventListener("resize", () => close(false));
+  addEventListener("scroll", () => close(false), true);
+  draw();
+}
+pillSelect($("f-status"), "Filter by status");
+
+const fillSelect = (el, values) => {
+  if (el.options.length) return;
+  setHTML(el, `<option value="">All</option>` + values.map((v) => `<option>${esc(v)}</option>`).join(""));
+};
+
+async function loadPage() {
+  const r = await fetch(`api/jobs?page=${page}${jobQuery()}`);
+  if (!r.ok) { $("rows").innerHTML = `<tr><td colspan="6">Could not load jobs</td></tr>`; return; }
+  const d = await r.json();
+  fillSelect($("f-job"), d.jobs);
+  $("f-status").fill(d.statuses);
+  pages = Math.max(1, Math.ceil(d.total / d.page_size));
+  if (page >= pages) { page = pages - 1; return loadPage(); }
+  setHTML($("rows"), d.rows.map((x) => `
+    <tr class="row ${x.run_id === selected ? "selected" : ""}" data-run="${esc(x.run_id)}">
+      <td>${esc(x.job)}</td><td>${esc(x.cob || "–")}</td><td>${pill(x.status, x.status_type)}</td>
+      <td class="nw">${clock(x.start_time)}</td><td class="nw">${clock(x.end_time)}</td><td>${mins(x.duration_s)}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="muted">No runs match</td></tr>`);
+  $("pageinfo").textContent = `Page ${page + 1} of ${pages} · ${d.total} runs`;
+  $("prev").disabled = page === 0;
+  $("next").disabled = page + 1 >= pages;
+}
+
+async function loadDetail() {
+  if (!selected) return;
+  const r = await fetch(`api/job?run=${encodeURIComponent(selected)}`);
+  if (!r.ok) return;
+  const j = await r.json();
+  $("detail").hidden = false;
+  $("name").textContent = j.name;
+  const rows = [
+    ["Status", pill(j.status, j.status_type)],
+    ["Iceberg table", j.iceberg_table ? `<code>${esc(j.iceberg_table)}</code>` : `<span class="muted">not configured</span>`],
+  ];
+  setHTML($("rerun"), (j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "") + `<a class="ico" href="${esc(j.url)}" title="Open this run in Prefect" aria-label="Open in Prefect">${PREFECT_ICON}</a>`);
+  stageNames = j.stages;
+  setHTML($("legend"), [...new Set(Object.values(j.stage_counts).flatMap(Object.keys))].sort(statusOrder).map(badge).join(""));
+  setHTML($("stages"), renderStages(j, stage));
+  setHTML($("meta"), rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""));
+}
+
+// The stage's per-instrument outcomes in AG Grid's infinite row model: the server pages, sorts and filters (10,000+ rows).
+let stageGrid = null, stageGridKey = null;
+async function loadStage() {
+  if (!selected || !stage) { $("stage-detail").hidden = true; return; }
+  $("stage-detail").hidden = false;
+  const k = `${selected}|${stage}`;
+  if (stageGrid && stageGridKey === k) return void stageGrid.refreshInfiniteCache();
+  stageGridKey = k;
+  if (stageGrid) return void stageGrid.purgeInfiniteCache();
+  await agGridReady();
+  if (stageGrid) return;
+  const box = $("stage-grid");
+  box.className = agTheme();
+  const filter = { filter: "agTextColumnFilter", floatingFilter: true, suppressHeaderMenuButton: true, filterParams: { buttons: [], suppressAndOrCondition: true, defaultOption: "contains", maxNumConditions: 1 } };
+  stageGrid = agGrid.createGrid(box, {
+    columnDefs: [
+      { headerName: "Instrument", field: "key", flex: 1, minWidth: 140, cellRenderer: (p) => p.value == null ? "" : `<code>${esc(p.value)}</code>`, ...filter },
+      { headerName: "Status", field: "status", width: 140, cellRenderer: (p) => p.value ? badge(p.value) : "", ...filter },
+      { headerName: "Detail", field: "detail", flex: 2, minWidth: 160, ...filter },
+      { headerName: "Recorded", field: "at", width: 240, valueFormatter: (p) => p.value ? when(p.value) : "", ...filter },
+    ],
+    defaultColDef: { sortable: true, resizable: true },
+    rowModelType: "infinite", cacheBlockSize: 100, maxBlocksInCache: 20, infiniteInitialRowCount: 100,
+    overlayNoRowsTemplate: "No instruments recorded for this stage in this run yet",
+    onRowClicked: (e) => { if (e.data) { openKey = e.data.key; loadInstrument(); } },
+    getRowStyle: () => ({ cursor: "pointer" }),
+    datasource: {
+      async getRows(p) {
+        const q = new URLSearchParams({ run: selected, stage, offset: p.startRow, limit: p.endRow - p.startRow });
+        for (const [col, f] of Object.entries(p.filterModel || {})) if (f.filter) q.set(col, f.filter);
+        const s = p.sortModel?.[0];
+        if (s) { q.set("sort", s.colId); q.set("dir", s.sort); }
+        try {
+          const r = await fetch(`api/stage?${q}`);
+          if (!r.ok) throw new Error(r.status);
+          const d = await r.json();
+          p.successCallback(d.items, d.total);
+        } catch (e) { p.failCallback(); }
+      },
+    },
+  });
+}
+
+$("stages").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".stage-card")) { e.preventDefault(); e.target.click(); }
+});
+
+async function loadInstrument() {
+  if (!openKey) return;
+  const r = await fetch(`api/instrument?run=${encodeURIComponent(selected)}&key=${encodeURIComponent(openKey)}`);
+  if (!r.ok) return;
+  const { stages } = await r.json();
+  const by = Object.fromEntries(stages.map((s) => [s.stage_name, s]));
+  $("inst-title").innerHTML = `<code>${esc(openKey)}</code>`;
+  setHTML($("inst-rows"), stageNames.map((n) => {
+    const s = by[n];
+    return `<tr><td>${esc(n)}</td><td>${s ? badge(s.status) : `<span class="muted">–</span>`}</td><td>${s ? esc(s.detail || "") : ""}</td>
+      <td class="muted nw">${s ? when(s.recorded_at) : ""}</td></tr>`;
+  }).join(""));
+  if (!$("instrument").open) $("instrument").showModal();
+}
+
+$("instrument").addEventListener("close", () => { openKey = null; });
+$("instrument").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+// Start a run straight from the dashboard: POST to Prefect's API, then link to the run it created.
+async function startRun(btn) {
+  btn.disabled = true;
+  btn.textContent = "starting…";
+  try {
+    const r = await fetch(`/prefect/api/deployments/${btn.dataset.deployment}/create_flow_run`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parameters: JSON.parse(btn.dataset.params) }),
+    });
+    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
+    const run = await r.json();
+    if ("select" in btn.dataset) {  // the card's own button: show the run it started
+      selected = run.id;
+      btn.disabled = false;
+      btn.textContent = btn.dataset.label;
+      loadPage(); loadDetail(); loadStage();
+    } else {
+      btn.outerHTML = `<a class="tlink" href="?run=${esc(run.id)}">started: ${esc(run.name)} →</a>`;
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || "rerun from here";
+    alert(`Could not start the run: ${err.message}`);
+  }
+}
+
+$("rerun").addEventListener("click", (e) => {
+  const b = e.target.closest("button.bust");
+  if (b) startRun(b);
+});
+$("meta").addEventListener("click", (e) => {
+  const b = e.target.closest("button.bust");
+  if (b) startRun(b);
+});
+
+$("stages").addEventListener("click", (e) => {
+  const view = e.target.closest("button.snap");
+  if (view) return void openStageData(selected, view.dataset.stage);
+  const bust = e.target.closest("button.bust");
+  if (bust) return void startRun(bust);
+  if (e.target.closest("a.tlink")) return;
+  const b = e.target.closest(".stage-card");
+  if (!b) return;
+  stage = stage === b.dataset.stage ? null : b.dataset.stage;
+  document.querySelectorAll(".stage-card").forEach((x) => x.classList.toggle("selected", x.dataset.stage === stage));
+  loadStage();
+});
+
+$("rows").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr.row");
+  if (!tr) return;
+  selected = tr.dataset.run;
+  document.querySelectorAll("tr.row").forEach((x) => x.classList.toggle("selected", x === tr));
+  loadDetail();
+  loadStage();
+});
+let filterTimer;
+for (const id of Object.values(jobFilters)) {
+  $(id).addEventListener("input", () => { clearTimeout(filterTimer); filterTimer = setTimeout(() => { page = 0; loadPage(); }, 250); });
+}
+$("prev").onclick = () => { page--; loadPage(); };
+$("next").onclick = () => { page++; loadPage(); };
+
+selected = new URLSearchParams(location.search).get("run");  // deep link to a run's detail
+stage = new URLSearchParams(location.search).get("stage");
+loadPage();
+loadDetail();
+
+// Live updates: the server pushes a message whenever the audit log or a Prefect run changes.
+let refreshTimer;
+const refresh = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { loadPage(); loadDetail(); loadStage(); loadInstrument(); }, 150); };
+connectLive(refresh);
+zonePicker(() => { refresh(); });
+setInterval(refresh, 60000);  // safety net
+</script>
+</body>
+</html>
