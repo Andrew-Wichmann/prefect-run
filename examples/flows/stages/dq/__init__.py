@@ -2,7 +2,7 @@ import pyarrow as pa
 
 from joule import stage
 from stages import init
-from stages.common import mock_work, with_failures
+from stages.stub import mock_work, with_failures
 
 IN = init.OUT
 OUT = IN

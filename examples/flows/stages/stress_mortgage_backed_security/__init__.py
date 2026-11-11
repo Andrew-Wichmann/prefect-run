@@ -3,7 +3,8 @@ import pyarrow.compute as pc
 
 from joule import stage
 from stages import stress
-from stages.common import add_scenarios, mock_work, with_failures
+from stages.stress.scenarios import add_scenarios
+from stages.stub import mock_work, with_failures
 
 IN = stress.IN
 OUT = stress.OUT

@@ -3,7 +3,8 @@ import pyarrow.compute as pc
 
 from joule import stage
 from stages import dq, stress
-from stages.common import add_scenarios, with_failures
+from stages.stress.scenarios import add_scenarios
+from stages.stub import with_failures
 
 IN = dq.OUT  # swaps skip calibration
 OUT = stress.OUT  # but still produce the shape upload takes

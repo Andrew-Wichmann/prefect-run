@@ -1,6 +1,6 @@
 from joule import job
 from stages.calibration import calibration
-from stages.common import RETENTION
+from config import RETENTION
 from stages.dq import dq
 from stages.init import init, read_raw
 from stages.stress import stress

@@ -3,7 +3,8 @@ import pyarrow.compute as pc
 
 from joule import stage
 from stages import calibration
-from stages.common import SCENARIO_FIELDS, add_scenarios, mock_work, with_failures
+from stages.stress.scenarios import SCENARIO_FIELDS, add_scenarios
+from stages.stub import mock_work, with_failures
 
 IN = calibration.OUT
 OUT = pa.schema([*IN, *SCENARIO_FIELDS])  # every stress stage produces this shape, which is what upload takes

@@ -2,7 +2,7 @@ import pyarrow as pa
 
 from joule import stage
 from stages import dq
-from stages.common import mock_work, with_failures
+from stages.stub import mock_work, with_failures
 
 IN = dq.OUT
 OUT = IN.append(pa.field("curve_shift", pa.float64()))

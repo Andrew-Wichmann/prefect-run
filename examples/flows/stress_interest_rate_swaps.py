@@ -1,5 +1,5 @@
 from joule import job
-from stages.common import RETENTION
+from config import RETENTION
 from stages.dq import dq
 from stages.init import init, read_raw
 from stages.stress_interest_rate_swaps import stress_interest_rate_swaps as stress_swaps
