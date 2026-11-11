@@ -9,7 +9,7 @@ from prefect import Task
 from joule import audit, cache, trace
 from joule.job import JOBS
 from joule.serializer import ParquetSerializer
-from joule.status import Outcome, Status
+from joule.status import Detail, valid_detail
 
 
 PRIMARY_KEY = "primary_key"
@@ -17,11 +17,11 @@ PRIMARY_KEY = "primary_key"
 
 P = ParamSpec("P")
 
-StageResult = tuple[pa.Table, Mapping[object, Outcome]]
+StageResult = tuple[pa.Table, Mapping[object, Detail]]
 
 
 class StageContractError(TypeError):
-    """A stage broke the ``Table -> (Table, {key: Status})`` contract."""
+    """A stage broke the ``Table -> (Table, {key: status})`` contract."""
 
 
 def _check_schema(name: str, label: str, expected: pa.Schema, table: pa.Table) -> None:
@@ -55,7 +55,7 @@ def _check_output(
 ) -> None:
     if not (isinstance(result, tuple) and len(result) == 2):
         raise StageContractError(
-            f"stage {name!r} must return (pyarrow.Table, dict[key, Status | (Status, detail)])"
+            f"stage {name!r} must return (pyarrow.Table, dict[key, status | (status, note)])"
         )
     table, statuses = result
     if not isinstance(table, pa.Table):
@@ -76,10 +76,9 @@ def _check_output(
             f"unknown: {sorted(map(repr, extra))[:5]})"
         )
     for v in statuses.values():
-        status, detail = v if isinstance(v, tuple) and len(v) == 2 else (v, None)
-        if not isinstance(status, Status) or not (detail is None or isinstance(detail, str)):
+        if not valid_detail(v):
             raise StageContractError(
-                f"stage {name!r} statuses must be a Status or (Status, detail str), got {v!r}"
+                f"stage {name!r} statuses must be a non-empty str or (str, note str), got {v!r}"
             )
 
 
@@ -122,11 +121,11 @@ def stage(
     (field names, order, types and nullability; schema metadata is ignored).
 
     The function takes a ``pyarrow.Table`` and returns
-    ``(pyarrow.Table, {primary_key_value: Status})``. A value may instead be
-    ``(Status, "why")``; the detail is recorded in the audit log next to the status. Rows are identified by the
+    ``(pyarrow.Table, {primary_key_value: status})``. A value may instead be
+    ``(status, "why")``; the detail is recorded in the audit log next to the status. Rows are identified by the
     ``PRIMARY_KEY`` column (fixed, not configurable), which must be in both
     schemas and unique in the input. The returned dict must have exactly one
-    ``Status`` per input row; rows may be filtered out of the returned table.
+    status string per input row; rows may be filtered out of the returned table.
 
     The wrapper consumes the dict (validates it and writes it to the audit
     log); callers of the stage only ever see the resulting table.

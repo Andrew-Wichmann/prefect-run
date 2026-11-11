@@ -2,10 +2,10 @@
 
 from joule.job import JobDefinitionError, job
 from joule.stage import PRIMARY_KEY, StageContractError, stage
-from joule.status import Outcome, Status
+from joule.status import Detail
 
 __all__ = [
     "job", "stage",  # the two decorators: a job is a flow, a stage is a task
-    "Status", "Outcome", "PRIMARY_KEY",  # what a stage returns per row, and the key column it must keep
+    "Detail", "PRIMARY_KEY",  # what a stage returns per row (a status string, optionally with a note), and the key column it must keep
     "JobDefinitionError", "StageContractError",  # raised when a job or stage breaks its contract
 ]

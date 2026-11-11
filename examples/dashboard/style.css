@@ -1,12 +1,12 @@
   :root {
     --bg: #fff; --fg: #1a1a1a; --muted: #6b7280; --line: #e5e7eb; --sel: #eef2ff;
     --gray: #9ca3af; --failed: #dc2626;
-    --ok: #16a34a; --run: #2563eb; --warn: #d97706;
+    --ok: #16a34a; --run: #2563eb; --warn: #d97706; --p1: #7c3aed; --p2: #0d9488; --p3: #db2777;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #14161a; --fg: #e5e7eb; --muted: #9ca3af; --line: #2a2e35; --sel: #1e2433;
       --gray: #6b7280; --failed: #f87171;
-      --ok: #4ade80; --run: #60a5fa; --warn: #fbbf24; }
+      --ok: #4ade80; --run: #60a5fa; --warn: #fbbf24; --p1: #a78bfa; --p2: #2dd4bf; --p3: #f472b6; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
@@ -22,10 +22,6 @@
   .wrap { overflow-x: auto; }
   .cell { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .init { --c: var(--gray); }
-  .passed, .calibrated, .stressed { --c: var(--run); }
-  .uploaded { --c: var(--ok); }
-  .failed { --c: var(--failed); }
   .dot { background: var(--c, var(--gray)); }
   .timeline { list-style: none; margin: 0; padding: 0 0 0 8px; border-left: 2px solid var(--line); }
   .timeline li { position: relative; padding: 0 0 12px 16px; }

@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from joule import Status, stage
+from joule import stage
 from stages.common import STRESSED, RAW, add_scenarios, mock_work, with_failures
 
 
@@ -17,4 +17,4 @@ def stress_interest_rate_swaps(table: pa.Table):
     """
     table = table.append_column("curve_shift", pa.array([0.0] * table.num_rows))
     table = add_scenarios(table, pc.subtract(100.0, table["price"]))
-    return with_failures(table, Status.STRESSED, REASONS)
+    return with_failures(table, "stressed", REASONS)

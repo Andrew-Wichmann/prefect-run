@@ -1,6 +1,6 @@
 import pyarrow as pa
 
-from joule import Status, stage
+from joule import stage
 from stages.common import CALIBRATED, RAW, mock_work, with_failures
 
 
@@ -12,4 +12,4 @@ def calibration(table: pa.Table):
     """Calibrate the curve; attaches a per-contract curve shift."""
     mock_work()
     table = table.append_column("curve_shift", pa.array([0.0] * table.num_rows))
-    return with_failures(table, Status.CALIBRATED, REASONS)
+    return with_failures(table, "calibrated", REASONS)

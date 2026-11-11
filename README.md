@@ -1,8 +1,8 @@
 # joule
 
 A small framework on top of Prefect for batch jobs over tables of instruments: `stage` wraps a task, `job` wraps a flow.
-Each stage takes and returns a PyArrow table with a per-row status, caches its result for the job's retention period,
-and records every row's outcome in a durable, append-only audit log.
+Each stage takes and returns a PyArrow table with a per-row status (any string you choose), caches its result for the job's retention period,
+and records every row's status in a durable, append-only audit log.
 
 **The framework is `src/joule/` and nothing else.** Everything under `examples/` is optional: sample jobs, an audit
 dashboard, and a Docker/AWS setup for running them. You don't need any of it to use the library.

@@ -1,6 +1,6 @@
 import pyarrow as pa
 
-from joule import Status, stage
+from joule import stage
 from stages.common import RAW, mock_work, with_failures
 
 REASONS = [
@@ -17,4 +17,4 @@ REASONS = [
 def dq(table: pa.Table):
     """Data quality checks on the raw quotes; failing rows are dropped from the output."""
     mock_work()
-    return with_failures(table, Status.PASSED, REASONS)
+    return with_failures(table, "passed", REASONS)

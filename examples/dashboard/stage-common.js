@@ -1,5 +1,5 @@
 // Pieces the stage timeline (layouts.js) is built from.
-// (esc, pill, fmtTime and STATUSES come from the page's own script.)
+// (esc, pill, fmtTime, statusColor and statusOrder come from the page's own script.)
 
 const secs = (s) => s == null ? "–" : `${s.toFixed(1)} s`;
 const totalOf = (counts) => Object.values(counts || {}).reduce((a, b) => a + b, 0);
@@ -14,8 +14,8 @@ function addStyle(css) {
 function statusMix(counts, base) {
   const total = totalOf(counts);
   base = Math.max(base || 0, total);
-  const segs = [...STATUSES].sort((a, b) => (b === "failed") - (a === "failed")).filter((s) => counts && counts[s]).map((s) =>
-    `<span class="seg ${s}" style="flex:${counts[s]}" title="${s}: ${counts[s]} of ${total} (${(100 * counts[s] / total).toFixed(1)}%)"></span>`);
+  const segs = Object.keys(counts || {}).filter((s) => counts[s]).sort(statusOrder).map((s) =>
+    `<span class="seg ${s === "failed" ? "failed" : ""}" style="flex:${counts[s]};background:${statusColor(s)}" title="${s}: ${counts[s]} of ${total} (${(100 * counts[s] / total).toFixed(1)}%)"></span>`);
   if (base > total) segs.unshift(`<span style="flex:${base - total}" title="${base - total} of ${base} no longer in the pipeline"></span>`);
   return `<div class="mix" role="img" aria-label="${total} of ${base} instruments">${segs.join("")}</div>`;
 }

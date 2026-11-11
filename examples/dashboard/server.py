@@ -112,7 +112,7 @@ def job_stages(name):
 
 
 # Flow runs (jobs) and task runs (stages) show Prefect's own state names, unchanged.
-# Instruments have their own, separate vocabulary: joule.Status.
+# Instruments have their own, separate vocabulary: whatever statuses the stages return.
 RUN_STATES = ["Scheduled", "Pending", "Running", "Completed", "Failed", "Crashed", "Cancelling", "Cancelled", "Paused"]
 
 

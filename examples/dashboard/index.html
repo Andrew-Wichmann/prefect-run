@@ -137,10 +137,12 @@ function setHTML(el, html) {
 }
 
 let page = 0, pages = 1, selected = null, stage = null, stageNames = [], openKey = null;
-const STATUSES = ["init", "passed", "calibrated", "stressed", "uploaded", "failed"];
-const badge = (s) => `<span class="cell ${esc(s)}"><span class="dot"></span>${esc(s)}</span>`;
+// Statuses are whatever the stages return, so colours come from the name: "failed" is red, the rest take a stable colour from a palette.
+const PALETTE = ["--run", "--ok", "--warn", "--p1", "--p2", "--p3"];
+const statusColor = (s) => s === "failed" ? "var(--failed)" : `var(${PALETTE[[...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PALETTE.length]})`;
+const statusOrder = (a, b) => (b === "failed") - (a === "failed") || a.localeCompare(b);
+const badge = (s) => `<span class="cell"><span class="dot" style="background:${statusColor(s)}"></span>${esc(s)}</span>`;
 const when = (t) => fmtTime(t, { date: true });
-$("legend").innerHTML = STATUSES.map(badge).join("");
 
 const jobFilters = { job: "f-job", cob: "f-cob", status: "f-status", min_minutes: "f-minutes" };
 const jobQuery = () => Object.entries(jobFilters)
@@ -224,6 +226,7 @@ async function loadDetail() {
   ];
   setHTML($("rerun"), (j.deployment_id ? `<button class="bust ico" data-label="↻" aria-label="Rerun this job" data-select data-deployment="${esc(j.deployment_id)}" data-params="${esc(JSON.stringify(Object.fromEntries(Object.entries(j.parameters).filter(([k]) => k !== "bust_cache_from"))))}" title="Start a new run with the same parameters (cache not busted)">↻</button>` : "") + `<a class="ico" href="${esc(j.url)}" title="Open this run in Prefect" aria-label="Open in Prefect">${PREFECT_ICON}</a>`);
   stageNames = j.stages;
+  setHTML($("legend"), [...new Set(Object.values(j.stage_counts).flatMap(Object.keys))].sort(statusOrder).map(badge).join(""));
   setHTML($("stages"), renderStages(j, stage));
   setHTML($("meta"), rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""));
 }
