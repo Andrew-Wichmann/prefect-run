@@ -1,4 +1,4 @@
-# Joule on a throwaway EC2 instance
+# Joules on a throwaway EC2 instance
 
 One `t3.small` (Amazon Linux 2023, 20 GB gp3) in the default VPC, running the whole Docker Compose
 stack. SSH and port 8080 are open only to your current public IP. About $0.70 per day; terraform
@@ -26,7 +26,7 @@ mid-session, `terraform apply` again to update the security group (or pass `-var
 After the stack is up, trigger runs on the instance:
 
 ```sh
-$(terraform output -raw ssh) 'cd joule/examples/deploy && docker compose exec -T prefect-worker python -c "
+$(terraform output -raw ssh) 'cd joules/examples/deploy && docker compose exec -T prefect-worker python -c "
 from prefect.deployments import run_deployment
 run_deployment(name=\"ingest-instruments/ingest-instruments\", timeout=0)" </dev/null'
 ```
@@ -45,7 +45,7 @@ Destroy:
 
 > In examples/deploy/aws run `terraform destroy`, show me the plan, and after I OK it run
 > `terraform destroy -auto-approve`. Afterwards confirm nothing is left with
-> `aws ec2 describe-instances --filters Name=tag:Project,Values=joule Name=instance-state-name,Values=pending,running,stopped --query 'Reservations[].Instances[].InstanceId'`
+> `aws ec2 describe-instances --filters Name=tag:Project,Values=joules Name=instance-state-name,Values=pending,running,stopped --query 'Reservations[].Instances[].InstanceId'`
 > (it should print `[]`).
 
 Pave from scratch (destroy then apply, e.g. to test a clean deploy):
@@ -56,8 +56,8 @@ Pave from scratch (destroy then apply, e.g. to test a clean deploy):
 ## Notes
 
 - State is local (`terraform.tfstate` here, git-ignored). Lose it and you'll have to delete the
-  tagged resources (`Project=joule`) by hand.
-- The private key is written to `examples/deploy/aws/joule.pem` (git-ignored).
+  tagged resources (`Project=joules`) by hand.
+- The private key is written to `examples/deploy/aws/joules.pem` (git-ignored).
 - The project is copied from your working tree at apply time (not `.git`, `.venv`, `.env` or `examples/deploy/aws`).
   Edit code and `terraform apply` again to redeploy (the tarball hash triggers the copy and
   `docker compose up -d --build`).

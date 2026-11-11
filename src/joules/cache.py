@@ -25,7 +25,7 @@ from prefect.cache_policies import CachePolicy
 from prefect.context import FlowRunContext, TaskRunContext
 from prefect.utilities.hashing import hash_objects
 
-_busted: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar("joule_busted_stages", default=frozenset())
+_busted: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar("joules_busted_stages", default=frozenset())
 
 
 def _canonical(value: Any) -> Any:

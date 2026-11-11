@@ -12,7 +12,7 @@ from prefect.runtime import flow_run
 
 from instruments import JOB_FOR, InstrumentType, make_instruments
 
-DATA_DIR = Path(os.environ.get("JOULE_DATA_DIR", "/opt/data"))
+DATA_DIR = Path(os.environ.get("JOULES_DATA_DIR", "/opt/data"))
 
 
 def download(key: str, dest: Path, count: int | None = None, only: InstrumentType | None = None) -> Path:

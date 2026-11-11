@@ -1,5 +1,5 @@
 .terraform/
 *.tfstate*
-joule.pem
+joules.pem
 .project.tar.gz
 crash.log

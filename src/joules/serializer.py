@@ -2,7 +2,7 @@
 
 The file is the output table; the per-row details (``key``, ``status``, ``detail`` for every input
 row, including the ones the stage dropped) ride in the file's key-value metadata under
-``joule.outcomes``, so any Parquet reader opens it. Prefect keeps its own bookkeeping in a separate
+``joules.outcomes``, so any Parquet reader opens it. Prefect keeps its own bookkeeping in a separate
 metadata file (see ``cache.policy_for``'s ``key_storage``), so the result file is raw bytes.
 """
 
@@ -24,11 +24,11 @@ def _parquet(table: pa.Table) -> bytes:
     return sink.getvalue()
 
 
-DETAILS_KEY = b"joule.outcomes"  # name kept so cached results from before the rename still load
+DETAILS_KEY = b"joules.outcomes"
 
 
 class ParquetSerializer(Serializer):
-    type: str = Field(default="joule-parquet", frozen=True)
+    type: str = Field(default="joules-parquet", frozen=True)
 
     def dumps(self, obj: tuple[pa.Table, Mapping[object, Detail]]) -> bytes:  # type: ignore[override]
         table, details = obj

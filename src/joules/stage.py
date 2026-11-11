@@ -13,7 +13,7 @@ from joules.status import Detail, valid_detail
 
 
 PRIMARY_KEY = "primary_key"
-"""Every table in joule is keyed by this column; it is not configurable."""
+"""Every table in joules is keyed by this column; it is not configurable."""
 
 P = ParamSpec("P")
 

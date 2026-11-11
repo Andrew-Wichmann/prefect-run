@@ -1,13 +1,13 @@
 output "audit_url" {
-  value = "http://${aws_instance.joule.public_ip}:8080/audit/"
+  value = "http://${aws_instance.joules.public_ip}:8080/audit/"
 }
 
 output "prefect_url" {
-  value = "http://${aws_instance.joule.public_ip}:8080/prefect/"
+  value = "http://${aws_instance.joules.public_ip}:8080/prefect/"
 }
 
 output "ssh" {
-  value = "ssh -i ${abspath(path.module)}/joule.pem ec2-user@${aws_instance.joule.public_ip}"
+  value = "ssh -i ${abspath(path.module)}/joules.pem ec2-user@${aws_instance.joules.public_ip}"
 }
 
 output "allowed_cidr" {

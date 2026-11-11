@@ -4,7 +4,7 @@ import contextlib
 import contextvars
 from collections.abc import Iterator
 
-_executed: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar("joule_executed_stages", default=None)
+_executed: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar("joules_executed_stages", default=None)
 
 
 @contextlib.contextmanager

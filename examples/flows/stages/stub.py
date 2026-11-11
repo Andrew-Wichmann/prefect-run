@@ -27,5 +27,5 @@ def with_failures(
 def mock_work(low: float = 1.0, high: float = 5.0) -> None:
     """Pretend to process for a while so runs take a realistic, varying time.
 
-    ``JOULE_MOCK_SCALE`` multiplies the time, to stage a deliberately slow run."""
-    time.sleep(random.uniform(low, high) * float(os.environ.get("JOULE_MOCK_SCALE", "1")))
+    ``JOULES_MOCK_SCALE`` multiplies the time, to stage a deliberately slow run."""
+    time.sleep(random.uniform(low, high) * float(os.environ.get("JOULES_MOCK_SCALE", "1")))

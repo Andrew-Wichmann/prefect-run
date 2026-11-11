@@ -12,6 +12,6 @@ terraform {
 provider "aws" {
   region = var.region
   default_tags {
-    tags = { Project = "joule", Ephemeral = "true" }
+    tags = { Project = "joules", Ephemeral = "true" }
   }
 }

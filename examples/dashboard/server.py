@@ -366,7 +366,7 @@ def load(path):
 
 
 def _outcomes(path):
-    meta = (pq.read_schema(path).metadata or {}).get(b"joule.outcomes")
+    meta = (pq.read_schema(path).metadata or {}).get(b"joules.outcomes")
     if not meta:
         return {}
     o = json.loads(meta)
