@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 packages = ["src/joule"]
 
 [tool.pyright]
-include = ["src", "flows", "scripts"]
-extraPaths = ["src", "flows"]
+include = ["src", "examples"]
+extraPaths = ["src", "examples/flows"]
 venvPath = "."
 venv = ".venv"

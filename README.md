@@ -1,33 +1,35 @@
-# prefect-run
+# joule
 
-Prefect server, worker and a small `joule` package (`stage` = task wrapper, `job` = flow wrapper).
+A small framework on top of Prefect for batch jobs over tables of instruments: `stage` wraps a task, `job` wraps a flow.
+Each stage takes and returns a PyArrow table with a per-row status, caches its result for the job's retention period,
+and records every row's outcome in a durable, append-only audit log.
 
-## Stack
+**The framework is `src/joule/` and nothing else.** Everything under `examples/` is optional: sample jobs, an audit
+dashboard, and a Docker/AWS setup for running them. You don't need any of it to use the library.
 
-    docker compose up -d        # postgres, prefect server, worker, nginx
-    # UI: http://localhost:8080/prefect
+    src/joule/       the framework (~8 files)
+    examples/
+      flows/         sample jobs written with @job / @stage
+      dashboard/     audit dashboard (API + page) and the audit-table schema
+      deploy/        Docker Compose stack, nginx, Terraform for a throwaway EC2 box
 
-## Local development
+## Using it
 
     uv venv .venv --python 3.12
     uv pip install --python .venv/bin/python -e .
     source .venv/bin/activate
 
-Code lives in `src/joule/`; flows and the deployment script are in `flows/`.
+Set `AUDIT_DATABASE_URL` to a Postgres with the table from `examples/dashboard/init.sql` to enable the audit log
+(without it, auditing is a no-op). See `examples/flows/` for jobs.
 
-## Neovim (LSP)
+## Running the examples
 
-LazyVim with pyright. `pyproject.toml` already points pyright at `.venv`,
-`src/` and `flows/`, so all you need is to start from the project root with the
-venv active:
+    cd examples/deploy
+    docker compose up -d        # postgres, prefect server, worker, audit dashboard, nginx
+    # Prefect UI:  http://localhost:8080/prefect
+    # Dashboard:   http://localhost:8080/audit/
 
-    cd ~/Code/prefect-run
-    source .venv/bin/activate
-    nvim .
-
-One-time: enable the Python extra with `:LazyExtras` -> `lang.python`, restart.
-Check with `:LspInfo` that `pyright` is attached. `gd` goes to definition,
-`gr` to references, `K` shows docs.
+AWS: see `examples/deploy/aws/README.md`.
 
 ## Links on the job card
 
@@ -44,3 +46,15 @@ def margin(...):
 `links=` is fixed per job type; `{name}` placeholders are filled per run from the run's parameters and `cob`, `run_id`,
 `run_name`, `job` (a link whose placeholder has no value is hidden). `joule.link(label, url)` attaches a link to the
 current run: it is a Prefect link artifact (also in Prefect's Artifacts tab), and a later link with the same label replaces the earlier one on the card.
+
+## Neovim (LSP)
+
+LazyVim with pyright. `pyproject.toml` already points pyright at `.venv`, `src/` and `examples/`, so start from the
+project root with the venv active:
+
+    cd ~/Code/prefect-run
+    source .venv/bin/activate
+    nvim .
+
+One-time: enable the Python extra with `:LazyExtras` -> `lang.python`, restart.
+Check with `:LspInfo` that `pyright` is attached. `gd` goes to definition, `gr` to references, `K` shows docs.

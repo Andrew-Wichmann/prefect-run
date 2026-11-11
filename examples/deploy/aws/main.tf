@@ -4,7 +4,7 @@ data "http" "my_ip" {
 
 locals {
   allowed_cidr = coalesce(var.allowed_cidr, "${chomp(data.http.my_ip.response_body)}/32")
-  project_root = "${path.module}/../.."
+  project_root = "${path.module}/../../.."
 }
 
 # Amazon Linux 2023, current AMI for the region.
@@ -95,7 +95,7 @@ data "archive_file" "project" {
   type        = "tar.gz"
   source_dir  = local.project_root
   output_path = "${path.module}/.project.tar.gz"
-  excludes    = [".git", ".venv", ".claude", "infra", "__pycache__", ".env"]
+  excludes    = [".git", ".venv", ".claude", "examples/deploy/aws", "__pycache__", ".env"]
 }
 
 resource "terraform_data" "deploy" {
@@ -118,7 +118,7 @@ resource "terraform_data" "deploy" {
     inline = [
       "cloud-init status --wait",
       "mkdir -p ~/joule && tar -xzf /tmp/joule.tar.gz -C ~/joule",
-      "cd ~/joule && sg docker -c 'docker compose up -d --build'",
+      "cd ~/joule/examples/deploy && sg docker -c 'docker compose up -d --build'",
     ]
   }
 }

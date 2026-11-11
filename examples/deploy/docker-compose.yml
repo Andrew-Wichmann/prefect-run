@@ -1,3 +1,6 @@
+# Run from this directory: docker compose up -d. The fixed project name keeps the volumes (audit log!) the same wherever it's run from.
+name: prefect-run
+
 services:
   postgres:
     image: postgres:16
@@ -26,7 +29,7 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - audit-data:/var/lib/postgresql/data
-      - ./audit/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ../dashboard/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U audit -d audit"]
       interval: 5s
@@ -60,8 +63,8 @@ services:
       AUDIT_DATABASE_URL: postgresql://audit:audit@audit-postgres:5432/audit
       PREFECT_LOCAL_STORAGE_PATH: /opt/cache  # stage results, shared by every run: this is the cache
     volumes:
-      - ./flows:/opt/flows:ro
-      - ./src:/opt/src:ro
+      - ../flows:/opt/flows:ro
+      - ../../src:/opt/src:ro
       - data:/opt/data
       - cache:/opt/cache
     depends_on:
@@ -80,8 +83,8 @@ services:
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
     volumes:
-      - ./flows:/opt/flows:ro
-      - ./src:/opt/src:ro
+      - ../flows:/opt/flows:ro
+      - ../../src:/opt/src:ro
     depends_on:
       prefect-worker:
         condition: service_started
@@ -91,16 +94,16 @@ services:
     build: .
     image: prefect-run-worker
     restart: unless-stopped
-    command: python /opt/audit_ui/server.py
+    command: python /opt/dashboard/server.py
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
       AUDIT_DATABASE_URL: postgresql://audit:audit@audit-postgres:5432/audit
       PREFECT_LOCAL_STORAGE_PATH: /opt/cache
     volumes:
       - cache:/opt/cache:ro  # the stage outputs, read directly as Parquet
-      - ./audit_ui:/opt/audit_ui:ro
-      - ./flows:/opt/flows:ro
-      - ./src:/opt/src:ro
+      - ../dashboard:/opt/dashboard:ro
+      - ../flows:/opt/flows:ro
+      - ../../src:/opt/src:ro
     depends_on:
       audit-postgres:
         condition: service_healthy

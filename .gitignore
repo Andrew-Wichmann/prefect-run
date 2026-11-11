@@ -6,7 +6,7 @@ __pycache__/
 # Claude Code: local settings and worktrees
 .claude/
 
-# Terraform state and keys (also covered in infra/aws/.gitignore)
+# Terraform state and keys (also covered in examples/deploy/aws/.gitignore)
 .terraform/
 *.tfstate*
 *.pem
