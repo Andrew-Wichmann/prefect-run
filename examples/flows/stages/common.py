@@ -6,16 +6,11 @@ from datetime import timedelta
 
 import pyarrow as pa
 import pyarrow.compute as pc
-import pyarrow.parquet as pq
 
 from joule import PRIMARY_KEY, Detail
 
-# Schemas chain: each stage's out_schema is the next stage's in_schema.
-RAW = pa.schema([(PRIMARY_KEY, pa.string()), ("price", pa.float64())])
-CALIBRATED = RAW.append(pa.field("curve_shift", pa.float64()))
 SCENARIOS = 700
-SCENARIO_COLUMNS = [f"pricing_scenario_{i}" for i in range(1, SCENARIOS + 1)]
-STRESSED = pa.schema([*CALIBRATED, *(pa.field(name, pa.float64()) for name in SCENARIO_COLUMNS)])
+SCENARIO_FIELDS = [pa.field(f"pricing_scenario_{i}", pa.float64()) for i in range(1, SCENARIOS + 1)]
 _SHOCKS = (lambda r: [r.gauss(0.0, 0.08) for _ in range(SCENARIOS)])(random.Random(2026))  # one market move per scenario, the same in every job
 
 
@@ -42,12 +37,7 @@ def add_scenarios(table: pa.Table, base: pa.ChunkedArray | pa.Array) -> pa.Table
     beta = pa.array([random.uniform(0.4, 1.6) for _ in range(len(base))])
     prices = [pc.round(pc.multiply(base, pc.add(1.0, pc.multiply(beta, shock))), 4) for shock in _SHOCKS]
     columns = [*table.columns, *prices]
-    return pa.Table.from_arrays(columns, schema=pa.schema([*table.schema, *(pa.field(n, pa.float64()) for n in SCENARIO_COLUMNS)]))
-
-
-def read_raw(path: str) -> pa.Table:
-    """Load a job's input parquet, keeping just the RAW columns."""
-    return pq.read_table(path, columns=[PRIMARY_KEY, "price"])
+    return pa.Table.from_arrays(columns, schema=pa.schema([*table.schema, *SCENARIO_FIELDS]))
 
 
 def mock_work(low: float = 1.0, high: float = 5.0) -> None:

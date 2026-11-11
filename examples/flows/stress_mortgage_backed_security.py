@@ -1,8 +1,8 @@
 from joule import job
 from stages.calibration import calibration
-from stages.common import RETENTION, read_raw
+from stages.common import RETENTION
 from stages.dq import dq
-from stages.init import init
+from stages.init import init, read_raw
 from stages.stress_mortgage_backed_security import stress_mortgage_backed_security as stress_mbs
 from stages.upload import upload
 

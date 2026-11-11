@@ -2,7 +2,11 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from joule import stage
-from stages.common import CALIBRATED, STRESSED, add_scenarios, mock_work, with_failures
+from stages import stress
+from stages.common import add_scenarios, mock_work, with_failures
+
+IN = stress.IN
+OUT = stress.OUT
 
 DROP = 0.25
 
@@ -10,7 +14,7 @@ DROP = 0.25
 REASONS = ["no TBA coupon available", "settlement date outside TBA calendar"]
 
 
-@stage(in_schema=CALIBRATED, out_schema=STRESSED)
+@stage(in_schema=IN, out_schema=OUT)
 def stress_to_be_announced(table: pa.Table):
     """Stress TBAs (forward-settling MBS, pool not yet specified): curve price less the drop (stub)."""
     mock_work()

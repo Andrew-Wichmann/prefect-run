@@ -1,7 +1,11 @@
 import pyarrow as pa
 
 from joule import stage
-from stages.common import RAW, mock_work, with_failures
+from stages import init
+from stages.common import mock_work, with_failures
+
+IN = init.OUT
+OUT = IN
 
 REASONS = [
     "price is null",
@@ -13,7 +17,7 @@ REASONS = [
 """Why the stub fails a row; a real check would report what it actually found."""
 
 
-@stage(in_schema=RAW, out_schema=RAW)
+@stage(in_schema=IN, out_schema=OUT)
 def dq(table: pa.Table):
     """Data quality checks on the raw quotes; failing rows are dropped from the output."""
     mock_work()
