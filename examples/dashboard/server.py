@@ -1,6 +1,8 @@
 """Read-only HTTP API + static page over the stage_audit table."""
 
 import asyncio
+import base64
+import io
 import importlib
 import json
 import os
@@ -366,11 +368,11 @@ def load(path):
 
 
 def _outcomes(path):
-    meta = (pq.read_schema(path).metadata or {}).get(b"joules.outcomes")
+    meta = (pq.read_schema(path).metadata or {}).get(b"joules.statuses")
     if not meta:
         return {}
-    o = json.loads(meta)
-    return {str(k): [s, d] for k, s, d in zip(o["key"], o["status"], o["detail"])}
+    t = pq.read_table(io.BytesIO(base64.b64decode(meta)))
+    return {str(k): [s, d] for k, s, d in zip(*(t[c].to_pylist() for c in ("primary_key", "status", "detail")))}
 
 
 def matrix_chunks(path, row_offset, row_limit, col_offset, col_limit, key=None):

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from joules import PRIMARY_KEY, Detail
+from joules import PRIMARY_KEY
 
 
 FAIL_RATE = 0.015
@@ -15,13 +15,12 @@ FAIL_RATE = 0.015
 
 def with_failures(
     table: pa.Table, ok: str, reasons: Sequence[str], rate: float = FAIL_RATE
-) -> tuple[pa.Table, dict[object, Detail]]:
-    """Stub outcome: every row gets ``ok`` except a random few, which fail with a reason and are dropped."""
-    keys = table[PRIMARY_KEY].to_pylist()
-    failed = {k: random.choice(reasons) for k in keys if random.random() < rate}
-    statuses: dict[object, Detail] = {k: ("failed", failed[k]) if k in failed else ok for k in keys}
-    is_failed = pc.is_in(table[PRIMARY_KEY], value_set=pa.array(sorted(failed), pa.string()))
-    return table.filter(pc.invert(is_failed)), statuses
+) -> tuple[pa.Table, pa.Table]:
+    """Stub result: every row gets status ``ok`` except a random few, which are ``failed`` with a reason and dropped."""
+    failed = pa.array([random.random() < rate for _ in range(table.num_rows)])
+    detail = pa.array([random.choice(reasons) if f else None for f in failed.to_pylist()], pa.string())
+    statuses = pa.table({PRIMARY_KEY: table[PRIMARY_KEY], "status": pc.if_else(failed, "failed", ok), "detail": detail})
+    return table.filter(pc.invert(failed)), statuses
 
 
 def mock_work(low: float = 1.0, high: float = 5.0) -> None:

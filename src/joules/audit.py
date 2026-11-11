@@ -1,11 +1,10 @@
 import os
 from datetime import datetime, timezone
-from collections.abc import Mapping
 
 import psycopg
+import pyarrow as pa
 from prefect.runtime import flow_run
 
-from joules.status import Detail, split_detail
 
 AUDIT_URL_ENV = "AUDIT_DATABASE_URL"
 
@@ -17,13 +16,14 @@ INSERT INTO stage_audit (
 """
 
 
-def record(stage_name: str, key_column: str, statuses: Mapping[object, Detail], task_run_id: str) -> None:
-    """Append one audit row per item (status, plus the detail if the item has one). No-op if ``AUDIT_DATABASE_URL`` is unset."""
+def record(stage_name: str, key_column: str, statuses: pa.Table, task_run_id: str) -> None:
+    """Append one audit row per row of the status table (``primary_key``, ``status``, ``detail``). No-op if ``AUDIT_DATABASE_URL`` is unset."""
     url = os.environ.get(AUDIT_URL_ENV)
-    if not url or not statuses:
+    if not url or not statuses.num_rows:
         return
     meta = (flow_run.flow_name, flow_run.id, flow_run.name, task_run_id, stage_name, stage_name, key_column)
-    rows = [(*meta, str(k), *split_detail(v)) for k, v in statuses.items()]
+    cols = [statuses[c].to_pylist() for c in (key_column, "status", "detail")]
+    rows = [(*meta, str(k), s, d) for k, s, d in zip(*cols)]
     with psycopg.connect(url) as conn:
         conn.cursor().executemany(_INSERT, rows)
 
