@@ -1,13 +1,25 @@
 # joules
 
-A small framework on top of Prefect for batch jobs over tables of instruments: `stage` wraps a task, `job` wraps a flow.
-Each stage takes and returns a PyArrow table with a per-row status (any string you choose), caches its result for the job's retention period,
-and records every row's status in a durable, append-only audit log.
+**Joules is a library for writing batch jobs on top of Prefect.** A Joules job is a straight pipeline of stages. Each stage takes
+a PyArrow table and returns two: the transformed table, and a status table describing what happened to each record.
+
+The transformed table gives Joules two things:
+
+1. **Cached, queryable results.** Joules stores each stage's output as Parquet. That gives a standard result cache, so a job
+   can restart from any stage, and it lets external tools query the stored results for analysis.
+2. **Schema-checked pipelines.** Each stage declares its input and output PyArrow schemas. Joules checks that the stages chain
+   when the job is defined, before anything runs, and enforces the schemas on every table at run time.
+
+The status table gives you a **row-level audit trail**. When a stage completes, Joules appends that table to a durable,
+append-only audit log (Postgres), so operators can later trace each record's path through a job. A status is any string you
+choose, with an optional note; the library has no list of them.
+
+`stage` wraps a Prefect task and `job` wraps a flow.
 
 **The framework is `src/joules/` and nothing else.** Everything under `examples/` is optional: sample jobs, an audit
 dashboard, and a Docker/AWS setup for running them. You don't need any of it to use the library.
 
-    src/joules/       the framework (~8 files)
+    src/joules/       the framework (8 small files)
     examples/
       flows/         sample jobs written with @job / @stage
       dashboard/     audit dashboard (API + page) and the audit-table schema
