@@ -96,6 +96,9 @@ class _Stage(Task[Any, Any]):
     Calling it returns just the table. The statuses are written to the audit log on every
     call, cache hit or not, so each run's audit trail is complete."""
 
+    in_schema: pa.Schema
+    out_schema: pa.Schema
+
     def __call__(self, *args: Any, **kwargs: Any) -> pa.Table:  # type: ignore[override]
         trace.note(self.name)
         task = self.with_options(refresh_cache=True) if cache.is_busted(self.name) else self
@@ -157,6 +160,8 @@ def stage(
         task_kwargs.setdefault("task_run_name", f.__name__)  # exact stage name, so readers need not strip Prefect's suffix
         task_kwargs.setdefault("result_serializer", ParquetSerializer())
         task_kwargs.setdefault("cache_policy", cache.policy_for(f.__name__, f, in_schema, out_schema))
-        return cast(Task[Concatenate[pa.Table, P], pa.Table], _Stage(checked, **task_kwargs))
+        task = _Stage(checked, **task_kwargs)
+        task.in_schema, task.out_schema = in_schema, out_schema  # read by @job to check the pipeline chains
+        return cast(Task[Concatenate[pa.Table, P], pa.Table], task)
 
     return decorate

@@ -14,7 +14,20 @@ R = TypeVar("R")
 
 
 class JobDefinitionError(RuntimeError):
-    """A job ran different stages than it declared."""
+    """A job's stages don't chain (one stage's output schema is not the next one's input schema), or it ran different stages than it declared."""
+
+
+def _check_chain(stages: Sequence[Task[..., Any]]) -> None:
+    """Each stage's ``out_schema`` must equal the next stage's ``in_schema`` (field names, order, types, nullability)."""
+    for a, b in zip(stages, stages[1:]):
+        out, into = getattr(a, "out_schema", None), getattr(b, "in_schema", None)
+        if out is None or into is None:
+            raise JobDefinitionError(f"{(a if out is None else b).name!r} is not a joules stage (use @stage)")
+        if not out.equals(into, check_metadata=False):
+            raise JobDefinitionError(
+                f"stage {a.name!r} outputs a schema that stage {b.name!r} does not take.\n"
+                f"{a.name} out_schema:\n{out}\n{b.name} in_schema:\n{into}"
+            )
 
 
 @dataclass(frozen=True)
@@ -44,7 +57,8 @@ def job(
     after the last run that used them. Each use of an entry extends its expiry, and the daily
     ``cleanup-cache`` flow deletes entries that have expired; the audit log is never touched.
     ``stages`` is mandatory and non-empty: it declares, in order, the stages the job runs, and
-    the run fails if it executes anything else. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``iceberg_table`` describes the job; it is registered in ``JOBS``
+    the run fails if it executes anything else. Each stage's ``out_schema`` must equal the next one's ``in_schema``;
+    this is checked when the job is defined (``JobDefinitionError``), before anything runs. (A flow with no stages is a plain Prefect ``@flow``, not a job.) ``iceberg_table`` describes the job; it is registered in ``JOBS``
     under the flow's name, which is where the audit UI reads it.
 
     A job also takes a ``bust_cache_from`` parameter: the name of a
@@ -53,6 +67,7 @@ def job(
     order = [s.name for s in stages]
     if not order:
         raise ValueError("a job must declare at least one stage; use a plain @flow otherwise")
+    _check_chain(stages)
 
     def decorate(f: Callable[P, R], /) -> Flow[P, R]:
         wrapped = flow(**flow_kwargs)(_with_cache_busting(f, order))
